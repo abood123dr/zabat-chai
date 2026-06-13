@@ -1,158 +1,299 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import db from "@/api/supabaseClient";
-
-import { Plus, Pencil, Trash2, EyeOff, Star } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Tag, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Textarea } from "@/components/ui/textarea";
 
-const EMPTY_PRODUCT = { name: "", name_en: "", description: "", price: 0, image: "", category: "", is_available: true, is_featured: false, is_offer: false, offer_price: 0, calories: 0 };
+const ICONS = ["☕", "🍵", "🧋", "🥤", "🍰", "🥪", "🍕", "🍔", "🍟", "🥗", "🍩", "🎮", "⭐", "🥛", "🧃"];
 
-export default function ProductManagement() {
-  const [dialogOpen, setDialogOpen] = useState(false);
+// ============================================================
+// أقسام
+// ============================================================
+function CategoriesTab() {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", icon: "☕", sort_order: 0 });
+  const [editId, setEditId] = useState(null);
+  const qc = useQueryClient();
+
+  const { data: cats = [], isLoading } = useQuery({
+    queryKey: ["categories-all"],
+    queryFn: () => db.entities.Category.list("sort_order"),
+  });
+
+  const save = useMutation({
+    mutationFn: (d) => editId ? db.entities.Category.update(editId, d) : db.entities.Category.create(d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories-all"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setOpen(false); setEditId(null); setForm({ name: "", icon: "☕", sort_order: 0 }); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id) => db.entities.Category.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories-all"] }); qc.invalidateQueries({ queryKey: ["categories"] }); },
+  });
+
+  const openAdd = () => { setForm({ name: "", icon: "☕", sort_order: cats.length }); setEditId(null); setOpen(true); };
+  const openEdit = (c) => { setForm({ name: c.name, icon: c.icon || "☕", sort_order: c.sort_order || 0 }); setEditId(c.id); setOpen(true); };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <p className="text-sm text-muted-foreground">{cats.length} قسم</p>
+        <Button onClick={openAdd} className="gap-2 rounded-xl"><Plus className="w-4 h-4" />قسم جديد</Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>
+      ) : cats.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground">
+          <Tag className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <p className="font-medium">لا توجد أقسام</p>
+          <p className="text-xs mt-1">اضغط "قسم جديد" لإضافة أول قسم</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {cats.map(c => (
+            <div key={c.id} className="flex items-center gap-3 bg-card border border-border rounded-xl p-3">
+              <span className="text-2xl">{c.icon || "☕"}</span>
+              <p className="flex-1 font-medium">{c.name}</p>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(c)}><Pencil className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(`حذف "${c.name}"؟`)) del.mutate(c.id); }}><Trash2 className="w-4 h-4" /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader><DialogTitle>{editId ? "تعديل القسم" : "قسم جديد"}</DialogTitle></DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); save.mutate({ ...form, sort_order: parseInt(form.sort_order) || 0 }); }} className="space-y-4">
+            <div>
+              <Label>اسم القسم *</Label>
+              <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: مشروبات ساخنة" required autoFocus />
+            </div>
+            <div>
+              <Label className="mb-2 block">الأيقونة</Label>
+              <div className="flex flex-wrap gap-2">
+                {ICONS.map(ic => (
+                  <button key={ic} type="button" onClick={() => setForm(p => ({ ...p, icon: ic }))}
+                    className={`text-2xl w-10 h-10 rounded-xl border-2 transition-all ${form.icon === ic ? "border-primary bg-primary/10 scale-110" : "border-border hover:border-primary/50"}`}>
+                    {ic}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button type="submit" className="w-full rounded-xl" disabled={save.isPending}>
+              {save.isPending ? "جاري الحفظ..." : editId ? "حفظ" : "إضافة"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================
+// منتجات
+// ============================================================
+function ProductsTab() {
+  const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
-  const [form, setForm] = useState(EMPTY_PRODUCT);
-  const [editingId, setEditingId] = useState(null);
-  const queryClient = useQueryClient();
+  const [editId, setEditId] = useState(null);
+  const [showMore, setShowMore] = useState(false);
+  const [form, setForm] = useState({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" });
+  const qc = useQueryClient();
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products-all"],
     queryFn: () => db.entities.Product.list("-created_date"),
   });
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ["categories"],
+  const { data: cats = [] } = useQuery({
+    queryKey: ["categories-all"],
     queryFn: () => db.entities.Category.list("sort_order"),
   });
 
   const save = useMutation({
-    mutationFn: (data) => editingId ? db.entities.Product.update(editingId, data) : db.entities.Product.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["products-all"] }); closeDialog(); },
+    mutationFn: (d) => editId ? db.entities.Product.update(editId, d) : db.entities.Product.create(d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products-all"] }); setOpen(false); setEditId(null); setShowMore(false); setForm({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" }); },
   });
 
-  const remove = useMutation({
+  const del = useMutation({
     mutationFn: (id) => db.entities.Product.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["products-all"] }); setDeleteId(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products-all"] }); setDeleteId(null); },
   });
 
-  const openAdd = () => { setForm(EMPTY_PRODUCT); setEditingId(null); setDialogOpen(true); };
-  const openEdit = (p) => { setForm({ name: p.name, name_en: p.name_en || "", description: p.description || "", price: p.price, image: p.image || "", category: p.category, is_available: p.is_available !== false, is_featured: p.is_featured || false, is_offer: p.is_offer || false, offer_price: p.offer_price || 0, calories: p.calories || 0 }); setEditingId(p.id); setDialogOpen(true); };
-  const closeDialog = () => { setDialogOpen(false); setEditingId(null); setForm(EMPTY_PRODUCT); };
+  const openAdd = () => { setForm({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" }); setEditId(null); setShowMore(false); setOpen(true); };
+  const openEdit = (p) => { setForm({ name: p.name, price: p.price, category: p.category || "", image: p.image || "", is_available: p.is_available !== false, is_featured: !!p.is_featured, description: p.description || "", is_offer: !!p.is_offer, offer_price: p.offer_price || "" }); setEditId(p.id); setShowMore(false); setOpen(true); };
 
-  const handleSubmit = (e) => {
+  const submit = (e) => {
     e.preventDefault();
-    save.mutate({ ...form, price: parseFloat(form.price) || 0, offer_price: parseFloat(form.offer_price) || 0, calories: parseInt(form.calories) || 0 });
+    save.mutate({ ...form, price: parseFloat(form.price) || 0, offer_price: parseFloat(form.offer_price) || 0 });
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-2xl font-bold">المنتجات</h1>
-          <p className="text-muted-foreground text-sm">{products.length} منتج</p>
-        </div>
-        <Button className="rounded-xl gap-2" onClick={openAdd}><Plus className="w-4 h-4" />إضافة منتج</Button>
+      <div className="flex justify-between items-center mb-4">
+        <p className="text-sm text-muted-foreground">{products.length} منتج</p>
+        <Button onClick={openAdd} className="gap-2 rounded-xl"><Plus className="w-4 h-4" />منتج جديد</Button>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-16"><div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>
+      ) : products.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground">
+          <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <p className="font-medium">لا توجد منتجات</p>
+          <p className="text-xs mt-1">اضغط "منتج جديد" للبدء</p>
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {products.map(p => (
             <div key={p.id} className="bg-card rounded-xl border border-border p-3 flex gap-3">
-              <img src={p.image || "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=100"} alt={p.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              {p.image
+                ? <img src={p.image} alt={p.name} className="w-16 h-16 rounded-xl object-cover shrink-0" onError={e => e.target.style.display = 'none'} />
+                : <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center text-2xl shrink-0">☕</div>
+              }
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium text-sm truncate">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.category}</p>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    {p.is_featured && <Star className="w-3.5 h-3.5 text-primary fill-primary" />}
-                    {!p.is_available && <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-primary text-sm">{p.price} ر.س</span>
-                    {p.is_offer && <Badge variant="destructive" className="text-[10px] px-1 h-4">عرض</Badge>}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                  </div>
-                </div>
+                <p className="font-semibold text-sm truncate">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{p.category}</p>
+                <p className="font-bold text-primary text-sm mt-1">{p.price} ر.س</p>
+              </div>
+              <div className="flex flex-col gap-1 shrink-0">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(p.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-auto" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="font-heading">{editingId ? "تعديل المنتج" : "إضافة منتج جديد"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">الاسم (عربي) *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required /></div>
-              <div><Label className="text-xs">الاسم (إنجليزي)</Label><Input value={form.name_en} onChange={e => setForm(p => ({ ...p, name_en: e.target.value }))} /></div>
+      {/* نافذة إضافة/تعديل منتج */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-auto" dir="rtl">
+          <DialogHeader><DialogTitle>{editId ? "تعديل المنتج" : "منتج جديد"}</DialogTitle></DialogHeader>
+          <form onSubmit={submit} className="space-y-3">
+
+            {/* الحقول الأساسية */}
+            <div>
+              <Label>اسم المنتج *</Label>
+              <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: قهوة عربية" required autoFocus />
             </div>
-            <div><Label className="text-xs">الوصف</Label><Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} /></div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">السعر (ر.س) *</Label><Input type="number" step="0.5" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} required /></div>
-              <div><Label className="text-xs">القسم *</Label>
+              <div>
+                <Label>السعر (ر.س) *</Label>
+                <Input type="number" step="0.5" min="0" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="0.00" required />
+              </div>
+              <div>
+                <Label>القسم *</Label>
                 <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
                   <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
-                  <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {cats.map(c => <SelectItem key={c.id} value={c.name}>{c.icon} {c.name}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
-            <div>
-              <Label className="text-xs">رابط صورة المنتج</Label>
-              <Input
-                value={form.image}
-                onChange={e => setForm(p => ({ ...p, image: e.target.value }))}
-                placeholder="https://example.com/image.jpg"
-                className="text-xs"
-              />
-              {form.image && (
-                <img src={form.image} alt="preview" className="w-full h-32 object-cover rounded-lg mt-2"
-                  onError={e => e.target.style.display = 'none'} />
-              )}
+
+            <div className="flex items-center justify-between py-1">
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <Switch checked={form.is_available} onCheckedChange={v => setForm(p => ({ ...p, is_available: v }))} />
+                متوفر الآن
+              </label>
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <Switch checked={form.is_featured} onCheckedChange={v => setForm(p => ({ ...p, is_featured: v }))} />
+                ⭐ مميز
+              </label>
             </div>
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm"><Switch checked={form.is_available} onCheckedChange={v => setForm(p => ({ ...p, is_available: v }))} />متوفر</label>
-              <label className="flex items-center gap-2 text-sm"><Switch checked={form.is_featured} onCheckedChange={v => setForm(p => ({ ...p, is_featured: v }))} />مميز</label>
-              <label className="flex items-center gap-2 text-sm"><Switch checked={form.is_offer} onCheckedChange={v => setForm(p => ({ ...p, is_offer: v }))} />عرض خاص</label>
-            </div>
-            {form.is_offer && (
-              <div><Label className="text-xs">سعر العرض</Label><Input type="number" step="0.5" value={form.offer_price} onChange={e => setForm(p => ({ ...p, offer_price: e.target.value }))} /></div>
+
+            {/* زر "خيارات إضافية" */}
+            <button
+              type="button"
+              onClick={() => setShowMore(v => !v)}
+              className="w-full flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+            >
+              {showMore ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {showMore ? "إخفاء الخيارات الإضافية" : "خيارات إضافية (صورة، وصف، عروض...)"}
+            </button>
+
+            {showMore && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <div>
+                  <Label>رابط الصورة</Label>
+                  <Input value={form.image} onChange={e => setForm(p => ({ ...p, image: e.target.value }))} placeholder="https://..." />
+                  {form.image && <img src={form.image} alt="" className="w-full h-28 object-cover rounded-lg mt-2" onError={e => e.target.style.display = 'none'} />}
+                </div>
+                <div>
+                  <Label>وصف المنتج</Label>
+                  <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="وصف قصير..." />
+                </div>
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <Switch checked={form.is_offer} onCheckedChange={v => setForm(p => ({ ...p, is_offer: v }))} />
+                  🔥 عرض خاص
+                </label>
+                {form.is_offer && (
+                  <div>
+                    <Label>سعر العرض (ر.س)</Label>
+                    <Input type="number" step="0.5" min="0" value={form.offer_price} onChange={e => setForm(p => ({ ...p, offer_price: e.target.value }))} placeholder="0.00" />
+                  </div>
+                )}
+              </div>
             )}
-            <Button type="submit" className="w-full rounded-xl" disabled={save.isPending}>{save.isPending ? "جاري الحفظ..." : editingId ? "حفظ التعديلات" : "إضافة المنتج"}</Button>
+
+            <Button type="submit" className="w-full rounded-xl h-11 text-base" disabled={save.isPending}>
+              {save.isPending ? "جاري الحفظ..." : editId ? "حفظ التعديلات" : "إضافة المنتج ✓"}
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent dir="rtl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-heading">حذف المنتج</AlertDialogTitle>
-            <AlertDialogDescription>هل أنت متأكد من حذف هذا المنتج؟ لا يمكن التراجع.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row-reverse gap-2">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={() => remove.mutate(deleteId)} className="bg-destructive text-destructive-foreground">حذف</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* تأكيد الحذف */}
+      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent className="max-w-xs text-center" dir="rtl">
+          <p className="text-lg font-bold mb-1">حذف المنتج؟</p>
+          <p className="text-muted-foreground text-sm mb-4">لا يمكن التراجع عن هذا الإجراء</p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteId(null)}>إلغاء</Button>
+            <Button variant="destructive" className="flex-1" onClick={() => del.mutate(deleteId)}>حذف</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================
+// الصفحة الرئيسية
+// ============================================================
+export default function ProductManagement() {
+  const [tab, setTab] = useState("products");
+
+  return (
+    <div dir="rtl">
+      {/* الهيدر + التابات */}
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <h1 className="font-heading text-xl font-bold flex-1">المنتجات والأقسام</h1>
+        <div className="flex rounded-xl border border-border overflow-hidden">
+          <button
+            onClick={() => setTab("products")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors ${tab === "products" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+          >
+            <Package className="w-4 h-4" /> المنتجات
+          </button>
+          <button
+            onClick={() => setTab("categories")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors ${tab === "categories" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+          >
+            <Tag className="w-4 h-4" /> الأقسام
+          </button>
+        </div>
+      </div>
+
+      {tab === "products" ? <ProductsTab /> : <CategoriesTab />}
     </div>
   );
 }

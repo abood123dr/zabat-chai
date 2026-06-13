@@ -8,8 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/api/supabaseClient";
 import db from "@/api/supabaseClient";
+
+// admin client يستخدم service_role لإنشاء مستخدمين مؤكدين مباشرة
+const adminSupabase = createClient(
+  "https://qgtpekhtoonqpoyirpvq.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFndHBla2h0b29ucXBveWlycHZxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDMxMTY4OSwiZXhwIjoyMDk1ODg3Njg5fQ.HJpHrdSNox74GoxWUtZX63WfSj40xhO63uaUaToO_p4",
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 const EMPTY_BIZ = { name: "", name_en: "", address: "", phone: "", logo_url: "", currency: "ر.س", opening_time: "09:00", closing_time: "24:00", is_active: true };
 const EMPTY_USER = { full_name: "", email: "", password: "", role: "cashier", business_id: "" };
@@ -78,19 +86,15 @@ export default function BusinessManagement() {
 
     setCreatingUser(true);
     try {
-      // حفظ جلسة المدير الحالية
-      const { data: { session: adminSession } } = await supabase.auth.getSession();
-
-      // إنشاء المستخدم الجديد
-      const { data, error } = await supabase.auth.signUp({
+      // إنشاء مستخدم مؤكد مباشرة عبر admin API
+      const { data, error } = await adminSupabase.auth.admin.createUser({
         email: userForm.email,
         password: userForm.password,
-        options: {
-          data: {
-            full_name: userForm.full_name,
-            role: userForm.role,
-            business_id: userForm.business_id,
-          },
+        email_confirm: true,
+        user_metadata: {
+          full_name: userForm.full_name,
+          role: userForm.role,
+          business_id: userForm.business_id,
         },
       });
 
@@ -98,21 +102,14 @@ export default function BusinessManagement() {
 
       // إضافة سجل في business_users
       if (data?.user) {
-        await supabase.from('business_users').insert([{
+        const { error: insertError } = await adminSupabase.from('business_users').insert([{
           business_id: userForm.business_id,
           user_id: data.user.id,
           email: userForm.email,
           full_name: userForm.full_name,
           role: userForm.role,
         }]);
-      }
-
-      // استعادة جلسة المدير
-      if (adminSession) {
-        await supabase.auth.setSession({
-          access_token: adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        });
+        if (insertError) throw insertError;
       }
 
       queryClient.invalidateQueries({ queryKey: ["business_users"] });

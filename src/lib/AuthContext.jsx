@@ -9,6 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [businessSettings, setBusinessSettings] = useState(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
   const [isLoadingPublicSettings] = useState(false);
   const [authError] = useState(null);
   const [appPublicSettings] = useState({ id: 'zabat-chai' });
@@ -40,6 +41,7 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) setupUser(session.user);
       else setCurrentBusinessId(null);
       setIsLoadingAuth(false);
+      setAuthChecked(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -66,6 +68,12 @@ export const AuthProvider = ({ children }) => {
     if (user?.business_id) loadBusinessSettings(user.business_id);
   };
 
+  const checkUserAuth = async () => {
+    const { data: { user: u } } = await supabase.auth.getUser();
+    if (u) setupUser(u);
+    setAuthChecked(true);
+  };
+
   const navigateToLogin = () => { window.location.href = '/login'; };
 
   const isAuthenticated = !!user;
@@ -78,12 +86,15 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
+      authChecked,
       authError,
       appPublicSettings,
       isSuperAdmin,
       logout,
       navigateToLogin,
       refreshBusinessSettings,
+      checkUserAuth,
+      checkAppState: checkUserAuth,
     }}>
       {children}
     </AuthContext.Provider>

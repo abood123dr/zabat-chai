@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 25 25% 12%;
+    --card: 38 30% 97%;
+    --card-foreground: 25 25% 12%;
+    --popover: 40 33% 98%;
+    --popover-foreground: 25 25% 12%;
+    --primary: 32 85% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 35 20% 93%;
+    --secondary-foreground: 25 25% 15%;
+    --muted: 35 15% 93%;
+    --muted-foreground: 25 10% 45%;
+    --accent: 32 60% 92%;
+    --accent-foreground: 32 85% 30%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 35 20% 88%;
+    --input: 35 20% 88%;
+    --ring: 32 85% 48%;
+    --chart-1: 32 85% 48%;
+    --chart-2: 160 50% 42%;
+    --chart-3: 25 60% 35%;
+    --chart-4: 45 80% 55%;
+    --chart-5: 200 60% 50%;
+    --radius: 0.75rem;
+    --font-heading: 'Cairo', sans-serif;
+    --font-body: 'Cairo', sans-serif;
+    --font-display: 'Cairo', sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sidebar-background: 25 20% 97%;
+    --sidebar-foreground: 25 25% 15%;
+    --sidebar-primary: 32 85% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 35 25% 93%;
+    --sidebar-accent-foreground: 25 25% 15%;
+    --sidebar-border: 35 20% 88%;
+    --sidebar-ring: 32 85% 48%;
+  }
+
+  .dark {
+    --background: 25 15% 8%;
+    --foreground: 35 20% 95%;
+    --card: 25 15% 12%;
+    --card-foreground: 35 20% 95%;
+    --popover: 25 15% 12%;
+    --popover-foreground: 35 20% 95%;
+    --primary: 32 85% 52%;
+    --primary-foreground: 25 15% 8%;
+    --secondary: 25 12% 18%;
+    --secondary-foreground: 35 20% 95%;
+    --muted: 25 12% 18%;
+    --muted-foreground: 35 10% 55%;
+    --accent: 25 12% 18%;
+    --accent-foreground: 32 85% 60%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 25 12% 20%;
+    --input: 25 12% 20%;
+    --ring: 32 85% 52%;
+    --chart-1: 32 85% 52%;
+    --chart-2: 160 50% 50%;
+    --chart-3: 30 60% 45%;
+    --chart-4: 45 80% 60%;
+    --chart-5: 200 60% 55%;
+    --sidebar-background: 25 15% 10%;
+    --sidebar-foreground: 35 15% 90%;
+    --sidebar-primary: 32 85% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 25 12% 16%;
+    --sidebar-accent-foreground: 35 15% 90%;
+    --sidebar-border: 25 12% 18%;
+    --sidebar-ring: 32 85% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+}

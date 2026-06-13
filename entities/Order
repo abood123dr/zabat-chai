@@ -1,0 +1,65 @@
+{
+  "name": "Order",
+  "type": "object",
+  "properties": {
+    "order_number": {
+      "type": "string",
+      "title": "\u0631\u0642\u0645 \u0627\u0644\u0637\u0644\u0628"
+    },
+    "table_number": {
+      "type": "number",
+      "title": "\u0631\u0642\u0645 \u0627\u0644\u0637\u0627\u0648\u0644\u0629"
+    },
+    "table_name": {
+      "type": "string",
+      "title": "\u0627\u0633\u0645 \u0627\u0644\u0637\u0627\u0648\u0644\u0629"
+    },
+    "table_type": {
+      "type": "string",
+      "enum": [
+        "table",
+        "room"
+      ],
+      "title": "\u0627\u0644\u0646\u0648\u0639"
+    },
+    "items": {
+      "type": "string",
+      "title": "\u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a"
+    },
+    "notes": {
+      "type": "string",
+      "title": "\u0645\u0644\u0627\u062d\u0638\u0627\u062a"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "received",
+        "preparing",
+        "ready",
+        "delivered"
+      ],
+      "title": "\u062d\u0627\u0644\u0629 \u0627\u0644\u0637\u0644\u0628"
+    },
+    "total": {
+      "type": "number",
+      "title": "\u0627\u0644\u0625\u062c\u0645\u0627\u0644\u064a"
+    },
+    "customer_action": {
+      "type": "string",
+      "enum": [
+        "none",
+        "call_waiter",
+        "request_bill",
+        "rate_service"
+      ],
+      "title": "\u0637\u0644\u0628 \u0627\u0644\u0639\u0645\u064a\u0644"
+    }
+  },
+  "required": [
+    "order_number",
+    "table_number",
+    "items",
+    "total",
+    "status"
+  ]
+}

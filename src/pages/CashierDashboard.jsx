@@ -1,0 +1,230 @@
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import db from "@/api/supabaseClient";
+
+import { Volume2, VolumeX, BellRing, Clock } from "lucide-react";
+import RoomsPanel from "../components/cashier/RoomsPanel";
+
+function playAlert() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1100, 880].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq; osc.type = "sine";
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0.5, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+      osc.start(t); osc.stop(t + 0.15);
+    });
+  } catch {}
+}
+
+const COLS = [
+  { key: "received",  title: "🆕 طلبات جديدة",  next: "preparing",  nextLabel: "✅ ابدأ التحضير", bg: "bg-blue-50",   header: "bg-blue-500",  border: "border-blue-200" },
+  { key: "preparing", title: "👨🍳 قيد التحضير",  next: "ready",      nextLabel: "🔔 جاهز",         bg: "bg-amber-50",  header: "bg-amber-500", border: "border-amber-200" },
+  { key: "ready",     title: "✅ جاهز للتسليم",  next: "delivered",  nextLabel: "📦 تسليم",        bg: "bg-green-50",  header: "bg-green-600", border: "border-green-200" },
+];
+
+function OrderCard({ order, onNext, nextLabel, productImages }) {
+  const items = (() => { try { return JSON.parse(order.items); } catch { return []; } })();
+  const hasAction = order.customer_action && order.customer_action !== "none";
+  const actionLabel = order.customer_action === "call_waiter" ? "🔔 يطلب موظف" : "🧾 يطلب الحساب";
+  const mins = Math.floor((Date.now() - new Date(order.created_date)) / 60000);
+  const isLate = order.status === "received" && mins >= 5;
+
+  return (
+    <div className={`rounded-2xl border-2 bg-white shadow-sm overflow-hidden ${isLate ? "border-red-400" : "border-gray-200"}`}>
+      <div className={`px-4 py-3 flex items-center justify-between ${isLate ? "bg-red-50" : "bg-gray-50"}`}>
+        <div>
+          <p className="font-heading font-bold text-base">{order.table_name}</p>
+          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+            <Clock className="w-3 h-3" />{mins} دقيقة مضت
+          </p>
+        </div>
+        <div className="text-left">
+          <p className="font-bold text-lg text-primary">{order.total} ر.س</p>
+          {isLate && <p className="text-[10px] text-red-500 font-bold">⚠ متأخر</p>}
+        </div>
+      </div>
+
+      {hasAction && (
+        <div className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold text-center">
+          {actionLabel}
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className="px-4 py-3 space-y-2 border-b border-gray-100">
+          {items.map((item, i) => {
+            const img = item.image || productImages[item.name];
+            return (
+              <div key={i} className="flex items-center gap-2.5">
+                {img
+                  ? <img src={img} alt={item.name} className="w-10 h-10 rounded-xl object-cover shrink-0 border border-gray-100" />
+                  : <div className="w-10 h-10 rounded-xl bg-amber-50 shrink-0 flex items-center justify-center text-xl">☕</div>
+                }
+                <span className="flex-1 text-sm font-medium text-gray-800">{item.quantity}× {item.name}</span>
+                <span className="text-sm font-bold text-gray-700">{(item.price * item.quantity).toFixed(0)} ر.س</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {order.notes && (
+        <div className="px-4 py-2 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">
+          📝 {order.notes}
+        </div>
+      )}
+
+      {nextLabel && (
+        <div className="px-4 py-3">
+          <button
+            onClick={onNext}
+            className="w-full py-3 rounded-xl bg-primary text-white font-bold text-base hover:bg-primary/90 active:scale-95 transition-all shadow-sm"
+          >
+            {nextLabel}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CashierDashboard() {
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [newAlert, setNewAlert] = useState(false);
+  const [mainTab, setMainTab] = useState("orders");
+  const queryClient = useQueryClient();
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => db.entities.Product.list(),
+  });
+
+  // Build a name→image map
+  const productImages = {};
+  products.forEach(p => { if (p.image) productImages[p.name] = p.image; });
+
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ["orders"],
+    queryFn: () => db.entities.Order.list("-created_date", 200),
+    refetchInterval: 8000,
+  });
+
+  useEffect(() => {
+    const unsub = db.entities.Order.subscribe((event) => {
+      if (event.type === "create") {
+        if (soundEnabled) playAlert();
+        setNewAlert(true);
+        setTimeout(() => setNewAlert(false), 5000);
+        queryClient.invalidateQueries({ queryKey: ["orders"] });
+      } else if (event.type === "update") {
+        queryClient.invalidateQueries({ queryKey: ["orders"] });
+      }
+    });
+    return unsub;
+  }, [queryClient, soundEnabled]);
+
+  const updateStatus = useMutation({
+    mutationFn: ({ id, status }) => db.entities.Order.update(id, { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+  });
+
+  const activeOrders = orders.filter(o => o.status !== "delivered");
+
+  return (
+    <div dir="rtl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="font-heading text-2xl font-bold">الكاشير</h1>
+          {newAlert && (
+            <div className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-full text-sm font-bold animate-bounce shadow-lg">
+              <BellRing className="w-4 h-4" /> طلب جديد وصل!
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => setSoundEnabled(v => !v)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${soundEnabled ? "bg-primary/5 border-primary/30 text-primary" : "bg-gray-50 border-gray-200 text-gray-400"}`}
+        >
+          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          {soundEnabled ? "الصوت شغّال" : "الصوت مطفأ"}
+        </button>
+      </div>
+
+      {/* Main Tabs */}
+      <div className="flex rounded-2xl border border-border overflow-hidden mb-6 w-fit">
+        <button
+          onClick={() => setMainTab("orders")}
+          className={`px-6 py-3 text-sm font-bold transition-colors flex items-center gap-2 ${mainTab === "orders" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          ☕ الطلبات
+          {activeOrders.length > 0 && (
+            <span className={`text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold ${mainTab === "orders" ? "bg-white/25 text-white" : "bg-primary/10 text-primary"}`}>
+              {activeOrders.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setMainTab("rooms")}
+          className={`px-6 py-3 text-sm font-bold transition-colors ${mainTab === "rooms" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          🎮 غرف السوني
+        </button>
+      </div>
+
+      {/* Rooms Tab */}
+      {mainTab === "rooms" && <RoomsPanel />}
+
+      {/* Orders Tab */}
+      {mainTab === "orders" && (
+        isLoading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+          </div>
+        ) : activeOrders.length === 0 ? (
+          <div className="text-center py-24">
+            <p className="text-5xl mb-4">☕</p>
+            <p className="text-xl font-heading font-bold text-gray-600">لا توجد طلبات حالياً</p>
+            <p className="text-gray-400 mt-2">ستظهر الطلبات هنا فور وصولها</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {COLS.map(col => {
+              const colOrders = orders.filter(o => o.status === col.key);
+              return (
+                <div key={col.key} className={`rounded-2xl border ${col.border} overflow-hidden`}>
+                  <div className={`${col.header} px-4 py-3 flex items-center justify-between`}>
+                    <span className="text-white font-heading font-bold text-base">{col.title}</span>
+                    <span className="bg-white/30 text-white text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">
+                      {colOrders.length}
+                    </span>
+                  </div>
+                  <div className={`${col.bg} p-3 space-y-3 min-h-40`}>
+                    {colOrders.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400 text-sm">لا يوجد</div>
+                    ) : (
+                      colOrders.map(order => (
+                        <OrderCard
+                          key={order.id}
+                          order={order}
+                          nextLabel={col.nextLabel}
+                          productImages={productImages}
+                          onNext={() => updateStatus.mutate({ id: order.id, status: col.next })}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+    </div>
+  );
+}

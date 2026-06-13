@@ -19,7 +19,6 @@ import ProductManagement from './pages/ProductManagement';
 import TableManagement from './pages/TableManagement';
 import BusinessManagement from './pages/BusinessManagement';
 import BusinessSettings from './pages/BusinessSettings';
-import InviteRegister from './pages/InviteRegister';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -52,8 +51,7 @@ const AuthenticatedApp = () => {
       <Route path="/menu" element={<CustomerMenu />} />
       <Route path="/order-tracking" element={<OrderTracking />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/invite" element={<InviteRegister />} />
-      <Route path="/register" element={<Navigate to="/login" replace />} />
+<Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>

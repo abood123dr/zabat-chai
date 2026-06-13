@@ -116,12 +116,12 @@ export default function CashierDashboard() {
 
   useEffect(() => {
     const unsub = db.entities.Order.subscribe((event) => {
-      if (event.type === "create") {
+      if (event.eventType === "INSERT") {
         if (soundEnabled) playAlert();
         setNewAlert(true);
         setTimeout(() => setNewAlert(false), 5000);
         queryClient.invalidateQueries({ queryKey: ["orders"] });
-      } else if (event.type === "update") {
+      } else if (event.eventType === "UPDATE" || event.eventType === "DELETE") {
         queryClient.invalidateQueries({ queryKey: ["orders"] });
       }
     });

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import db from "@/api/supabaseClient";
 
 import { Plus, Pencil, Trash2, QrCode, Copy, Check } from "lucide-react";
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ export default function TableManagement() {
   const [filter, setFilter] = useState("all");
   const [copied, setCopied] = useState(false);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: tables = [], isLoading } = useQuery({
     queryKey: ["tables"],
@@ -48,7 +50,8 @@ export default function TableManagement() {
   const getMenuUrl = (t) => {
     const base = window.location.origin;
     const param = t.type === "room" ? "room" : "table";
-    return `${base}/menu?${param}=${t.number}&name=${encodeURIComponent(t.name)}`;
+    const bid = user?.business_id ? `&bid=${user.business_id}` : '';
+    return `${base}/menu?${param}=${t.number}&name=${encodeURIComponent(t.name)}${bid}`;
   };
 
   const getQrUrl = (t) => {

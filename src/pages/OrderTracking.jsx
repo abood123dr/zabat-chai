@@ -33,7 +33,7 @@ export default function OrderTracking() {
   useEffect(() => {
     if (!orderId) return;
     const unsub = db.entities.Order.subscribe((event) => {
-      if (event.id === orderId) setOrder(event.data);
+      if (event.new?.id === orderId) setOrder(event.new);
     });
     return unsub;
   }, [orderId]);
@@ -121,7 +121,7 @@ export default function OrderTracking() {
           </div>
         )}
 
-        <Link to={`/menu?${order.table_type === 'room' ? 'room' : 'table'}=${order.table_number}&name=${encodeURIComponent(order.table_name)}`}>
+        <Link to={`/menu?${order.table_type === 'room' ? 'room' : 'table'}=${order.table_number}&name=${encodeURIComponent(order.table_name)}${order.business_id ? `&bid=${order.business_id}` : ''}`}>
           <Button variant="outline" className="w-full rounded-xl gap-2">
             <ArrowRight className="w-4 h-4" />
             طلب جديد

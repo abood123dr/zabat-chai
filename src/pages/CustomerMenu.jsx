@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import db from "@/api/supabaseClient";
+import db, { setCurrentBusinessId } from "@/api/supabaseClient";
 
 import { Search, ShoppingCart, Coffee, Bell, Receipt, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,15 @@ export default function CustomerMenu() {
   const tableNumber = urlParams.get("table") || urlParams.get("room") || "1";
   const tableType = urlParams.get("room") ? "room" : "table";
   const tableName = urlParams.get("name") || (tableType === "room" ? `غرفة ${tableNumber}` : `طاولة ${tableNumber}`);
+  const bid = urlParams.get("bid");
+
+  // ضبط business_id مبكراً لعزل بيانات الكافيه
+  setCurrentBusinessId(bid || null);
+
+  useEffect(() => {
+    setCurrentBusinessId(bid || null);
+    return () => setCurrentBusinessId(null);
+  }, [bid]);
 
   const [cart, setCart] = useState([]);
   const [search, setSearch] = useState("");
@@ -26,12 +35,12 @@ export default function CustomerMenu() {
   const queryClient = useQueryClient();
 
   const { data: categories = [] } = useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories", bid],
     queryFn: () => db.entities.Category.filter({ is_active: true }, "sort_order"),
   });
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", bid],
     queryFn: () => db.entities.Product.filter({ is_available: true }),
   });
 

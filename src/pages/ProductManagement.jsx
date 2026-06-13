@@ -20,7 +20,6 @@ export default function ProductManagement() {
   const [deleteId, setDeleteId] = useState(null);
   const [form, setForm] = useState(EMPTY_PRODUCT);
   const [editingId, setEditingId] = useState(null);
-  const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: products = [], isLoading } = useQuery({
@@ -46,15 +45,6 @@ export default function ProductManagement() {
   const openAdd = () => { setForm(EMPTY_PRODUCT); setEditingId(null); setDialogOpen(true); };
   const openEdit = (p) => { setForm({ name: p.name, name_en: p.name_en || "", description: p.description || "", price: p.price, image: p.image || "", category: p.category, is_available: p.is_available !== false, is_featured: p.is_featured || false, is_offer: p.is_offer || false, offer_price: p.offer_price || 0, calories: p.calories || 0 }); setEditingId(p.id); setDialogOpen(true); };
   const closeDialog = () => { setDialogOpen(false); setEditingId(null); setForm(EMPTY_PRODUCT); };
-
-  const handleImage = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    const { file_url } = await db.integrations.Core.UploadFile({ file });
-    setForm(prev => ({ ...prev, image: file_url }));
-    setUploading(false);
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -126,12 +116,17 @@ export default function ProductManagement() {
               </div>
             </div>
             <div>
-              <Label className="text-xs">صورة المنتج</Label>
-              {form.image && <img src={form.image} alt="preview" className="w-full h-32 object-cover rounded-lg mb-2" />}
-              <div className="flex gap-2">
-                <Input type="file" accept="image/*" onChange={handleImage} className="text-xs" />
-                {uploading && <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin self-center" />}
-              </div>
+              <Label className="text-xs">رابط صورة المنتج</Label>
+              <Input
+                value={form.image}
+                onChange={e => setForm(p => ({ ...p, image: e.target.value }))}
+                placeholder="https://example.com/image.jpg"
+                className="text-xs"
+              />
+              {form.image && (
+                <img src={form.image} alt="preview" className="w-full h-32 object-cover rounded-lg mt-2"
+                  onError={e => e.target.style.display = 'none'} />
+              )}
             </div>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.is_available} onCheckedChange={v => setForm(p => ({ ...p, is_available: v }))} />متوفر</label>

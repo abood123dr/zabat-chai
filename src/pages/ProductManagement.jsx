@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import db from "@/api/supabaseClient";
-import { Plus, Pencil, Trash2, Package, Tag, ChevronDown, ChevronUp } from "lucide-react";
+import db, { setCurrentBusinessId, getCurrentBusinessId } from "@/api/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
+import { Plus, Pencil, Trash2, Package, Tag, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,31 +13,78 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 const ICONS = ["☕", "🍵", "🧋", "🥤", "🍰", "🥪", "🍕", "🍔", "🍟", "🥗", "🍩", "🎮", "⭐", "🥛", "🧃"];
 
 // ============================================================
+// منتقي الكافيه للسوبر أدمن
+// ============================================================
+function BusinessPicker({ selectedId, onSelect }) {
+  const { data: businesses = [] } = useQuery({
+    queryKey: ["businesses"],
+    queryFn: () => db.entities.Business.list("name"),
+  });
+
+  return (
+    <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+      <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-amber-800">اختر الكافيه لإدارة منتجاته</p>
+        <Select value={selectedId || ""} onValueChange={onSelect}>
+          <SelectTrigger className="mt-1.5 bg-white border-amber-300">
+            <SelectValue placeholder="اختر الكافيه..." />
+          </SelectTrigger>
+          <SelectContent>
+            {businesses.map(b => (
+              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // أقسام
 // ============================================================
-function CategoriesTab() {
+function CategoriesTab({ activeBid }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", icon: "☕", sort_order: 0 });
   const [editId, setEditId] = useState(null);
+  const [error, setError] = useState("");
   const qc = useQueryClient();
 
   const { data: cats = [], isLoading } = useQuery({
-    queryKey: ["categories-all"],
+    queryKey: ["categories-all", activeBid],
     queryFn: () => db.entities.Category.list("sort_order"),
+    enabled: !!activeBid,
   });
 
   const save = useMutation({
     mutationFn: (d) => editId ? db.entities.Category.update(editId, d) : db.entities.Category.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories-all"] }); qc.invalidateQueries({ queryKey: ["categories"] }); setOpen(false); setEditId(null); setForm({ name: "", icon: "☕", sort_order: 0 }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories-all"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      setOpen(false); setEditId(null); setError("");
+      setForm({ name: "", icon: "☕", sort_order: 0 });
+    },
+    onError: (err) => setError(err.message || "حدث خطأ، حاول مرة أخرى"),
   });
 
   const del = useMutation({
     mutationFn: (id) => db.entities.Category.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories-all"] }); qc.invalidateQueries({ queryKey: ["categories"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories-all"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    },
   });
 
-  const openAdd = () => { setForm({ name: "", icon: "☕", sort_order: cats.length }); setEditId(null); setOpen(true); };
-  const openEdit = (c) => { setForm({ name: c.name, icon: c.icon || "☕", sort_order: c.sort_order || 0 }); setEditId(c.id); setOpen(true); };
+  const openAdd = () => { setForm({ name: "", icon: "☕", sort_order: cats.length }); setEditId(null); setError(""); setOpen(true); };
+  const openEdit = (c) => { setForm({ name: c.name, icon: c.icon || "☕", sort_order: c.sort_order || 0 }); setEditId(c.id); setError(""); setOpen(true); };
+
+  if (!activeBid) return (
+    <div className="text-center py-20 text-muted-foreground">
+      <Tag className="w-12 h-12 mx-auto mb-3 opacity-20" />
+      <p>اختر الكافيه أولاً من الأعلى</p>
+    </div>
+  );
 
   return (
     <div>
@@ -69,7 +117,8 @@ function CategoriesTab() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm" dir="rtl">
           <DialogHeader><DialogTitle>{editId ? "تعديل القسم" : "قسم جديد"}</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); save.mutate({ ...form, sort_order: parseInt(form.sort_order) || 0 }); }} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); setError(""); save.mutate({ ...form, sort_order: parseInt(form.sort_order) || 0 }); }} className="space-y-4">
+            {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
             <div>
               <Label>اسم القسم *</Label>
               <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: مشروبات ساخنة" required autoFocus />
@@ -98,27 +147,35 @@ function CategoriesTab() {
 // ============================================================
 // منتجات
 // ============================================================
-function ProductsTab() {
+function ProductsTab({ activeBid }) {
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [showMore, setShowMore] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" });
   const qc = useQueryClient();
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products-all"],
+    queryKey: ["products-all", activeBid],
     queryFn: () => db.entities.Product.list("-created_date"),
+    enabled: !!activeBid,
   });
 
   const { data: cats = [] } = useQuery({
-    queryKey: ["categories-all"],
+    queryKey: ["categories-all", activeBid],
     queryFn: () => db.entities.Category.list("sort_order"),
+    enabled: !!activeBid,
   });
 
   const save = useMutation({
     mutationFn: (d) => editId ? db.entities.Product.update(editId, d) : db.entities.Product.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products-all"] }); setOpen(false); setEditId(null); setShowMore(false); setForm({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products-all"] });
+      setOpen(false); setEditId(null); setShowMore(false); setError("");
+      setForm({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" });
+    },
+    onError: (err) => setError(err.message || "حدث خطأ، حاول مرة أخرى"),
   });
 
   const del = useMutation({
@@ -126,13 +183,27 @@ function ProductsTab() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products-all"] }); setDeleteId(null); },
   });
 
-  const openAdd = () => { setForm({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" }); setEditId(null); setShowMore(false); setOpen(true); };
-  const openEdit = (p) => { setForm({ name: p.name, price: p.price, category: p.category || "", image: p.image || "", is_available: p.is_available !== false, is_featured: !!p.is_featured, description: p.description || "", is_offer: !!p.is_offer, offer_price: p.offer_price || "" }); setEditId(p.id); setShowMore(false); setOpen(true); };
+  const openAdd = () => {
+    setForm({ name: "", price: "", category: "", image: "", is_available: true, is_featured: false, description: "", is_offer: false, offer_price: "" });
+    setEditId(null); setShowMore(false); setError(""); setOpen(true);
+  };
+  const openEdit = (p) => {
+    setForm({ name: p.name, price: p.price, category: p.category || "", image: p.image || "", is_available: p.is_available !== false, is_featured: !!p.is_featured, description: p.description || "", is_offer: !!p.is_offer, offer_price: p.offer_price || "" });
+    setEditId(p.id); setShowMore(false); setError(""); setOpen(true);
+  };
 
   const submit = (e) => {
     e.preventDefault();
+    setError("");
     save.mutate({ ...form, price: parseFloat(form.price) || 0, offer_price: parseFloat(form.offer_price) || 0 });
   };
+
+  if (!activeBid) return (
+    <div className="text-center py-20 text-muted-foreground">
+      <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
+      <p>اختر الكافيه أولاً من الأعلى</p>
+    </div>
+  );
 
   return (
     <div>
@@ -171,13 +242,13 @@ function ProductsTab() {
         </div>
       )}
 
-      {/* نافذة إضافة/تعديل منتج */}
+      {/* نافذة إضافة/تعديل */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-auto" dir="rtl">
           <DialogHeader><DialogTitle>{editId ? "تعديل المنتج" : "منتج جديد"}</DialogTitle></DialogHeader>
           <form onSubmit={submit} className="space-y-3">
+            {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
 
-            {/* الحقول الأساسية */}
             <div>
               <Label>اسم المنتج *</Label>
               <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: قهوة عربية" required autoFocus />
@@ -189,7 +260,7 @@ function ProductsTab() {
                 <Input type="number" step="0.5" min="0" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="0.00" required />
               </div>
               <div>
-                <Label>القسم *</Label>
+                <Label>القسم</Label>
                 <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
                   <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
                   <SelectContent>
@@ -210,12 +281,8 @@ function ProductsTab() {
               </label>
             </div>
 
-            {/* زر "خيارات إضافية" */}
-            <button
-              type="button"
-              onClick={() => setShowMore(v => !v)}
-              className="w-full flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
-            >
+            <button type="button" onClick={() => setShowMore(v => !v)}
+              className="w-full flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
               {showMore ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               {showMore ? "إخفاء الخيارات الإضافية" : "خيارات إضافية (صورة، وصف، عروض...)"}
             </button>
@@ -271,29 +338,42 @@ function ProductsTab() {
 // ============================================================
 export default function ProductManagement() {
   const [tab, setTab] = useState("products");
+  const { user, isSuperAdmin } = useAuth();
+  const [selectedBid, setSelectedBid] = useState(null);
+
+  // للسوبر أدمن: يختار الكافيه بنفسه
+  // للأدمن العادي: يُستخدم business_id تلقائياً
+  const activeBid = isSuperAdmin ? selectedBid : user?.business_id;
+
+  // ضبط currentBusinessId عند تغيير الاختيار
+  useEffect(() => {
+    if (isSuperAdmin && selectedBid) {
+      setCurrentBusinessId(selectedBid);
+    }
+  }, [selectedBid, isSuperAdmin]);
 
   return (
     <div dir="rtl">
-      {/* الهيدر + التابات */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <h1 className="font-heading text-xl font-bold flex-1">المنتجات والأقسام</h1>
         <div className="flex rounded-xl border border-border overflow-hidden">
-          <button
-            onClick={() => setTab("products")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors ${tab === "products" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
-          >
+          <button onClick={() => setTab("products")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors ${tab === "products" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}>
             <Package className="w-4 h-4" /> المنتجات
           </button>
-          <button
-            onClick={() => setTab("categories")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors ${tab === "categories" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
-          >
+          <button onClick={() => setTab("categories")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors ${tab === "categories" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}>
             <Tag className="w-4 h-4" /> الأقسام
           </button>
         </div>
       </div>
 
-      {tab === "products" ? <ProductsTab /> : <CategoriesTab />}
+      {/* منتقي الكافيه للسوبر أدمن فقط */}
+      {isSuperAdmin && (
+        <BusinessPicker selectedId={selectedBid} onSelect={setSelectedBid} />
+      )}
+
+      {tab === "products" ? <ProductsTab activeBid={activeBid} /> : <CategoriesTab activeBid={activeBid} />}
     </div>
   );
 }

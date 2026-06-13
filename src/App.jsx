@@ -18,6 +18,8 @@ import CashierDashboard from './pages/CashierDashboard';
 import ProductManagement from './pages/ProductManagement';
 import TableManagement from './pages/TableManagement';
 import BusinessManagement from './pages/BusinessManagement';
+import BusinessSettings from './pages/BusinessSettings';
+import InviteRegister from './pages/InviteRegister';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -50,7 +52,7 @@ const AuthenticatedApp = () => {
       <Route path="/menu" element={<CustomerMenu />} />
       <Route path="/order-tracking" element={<OrderTracking />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/settings" element={<Navigate to="/businesses" replace />} />
+      <Route path="/invite" element={<InviteRegister />} />
       <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
@@ -61,6 +63,7 @@ const AuthenticatedApp = () => {
           <Route path="/products" element={<ProductManagement />} />
           <Route path="/tables" element={<TableManagement />} />
           <Route path="/businesses" element={<BusinessManagement />} />
+          <Route path="/settings" element={<BusinessSettings />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

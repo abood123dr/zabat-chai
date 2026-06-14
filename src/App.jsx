@@ -1,3 +1,4 @@
+import React, { lazy, Suspense } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -7,19 +8,28 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Layout from './components/Layout';
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import CustomerMenu from './pages/CustomerMenu';
-import OrderTracking from './pages/OrderTracking';
-import AdminDashboard from './pages/AdminDashboard';
-import CashierDashboard from './pages/CashierDashboard';
-import ProductManagement from './pages/ProductManagement';
-import TableManagement from './pages/TableManagement';
-import BusinessManagement from './pages/BusinessManagement';
-import BusinessSettings from './pages/BusinessSettings';
 
-// الصفحات العامة (بدون تسجيل دخول)
+// تحميل الصفحات بشكل كسول لتسريع الفتح الأول
+const Login             = lazy(() => import('./pages/Login'));
+const ForgotPassword    = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword     = lazy(() => import('./pages/ResetPassword'));
+const CustomerMenu      = lazy(() => import('./pages/CustomerMenu'));
+const OrderTracking     = lazy(() => import('./pages/OrderTracking'));
+const AdminDashboard    = lazy(() => import('./pages/AdminDashboard'));
+const CashierDashboard  = lazy(() => import('./pages/CashierDashboard'));
+const ProductManagement = lazy(() => import('./pages/ProductManagement'));
+const TableManagement   = lazy(() => import('./pages/TableManagement'));
+const BusinessManagement = lazy(() => import('./pages/BusinessManagement'));
+const BusinessSettings  = lazy(() => import('./pages/BusinessSettings'));
+
+function PageLoader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+    </div>
+  );
+}
+
 function PublicRoutes() {
   return (
     <Routes>
@@ -29,16 +39,11 @@ function PublicRoutes() {
   );
 }
 
-// صفحات لوحة التحكم (تحتاج تسجيل دخول)
 const DashboardApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (authError) {
@@ -70,11 +75,12 @@ const DashboardApp = () => {
 function AppRoutes() {
   const path = window.location.pathname;
 
-  // روابط عامة تُعرض فوراً بدون أي فحص auth
   if (path.startsWith('/menu') || path.startsWith('/order-tracking')) {
     return (
       <Router>
-        <PublicRoutes />
+        <Suspense fallback={<PageLoader />}>
+          <PublicRoutes />
+        </Suspense>
       </Router>
     );
   }
@@ -82,7 +88,9 @@ function AppRoutes() {
   return (
     <Router>
       <AuthProvider>
-        <DashboardApp />
+        <Suspense fallback={<PageLoader />}>
+          <DashboardApp />
+        </Suspense>
       </AuthProvider>
     </Router>
   );

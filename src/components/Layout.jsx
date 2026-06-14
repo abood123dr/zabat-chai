@@ -1,9 +1,12 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { useState } from "react";
-import { LayoutDashboard, ShoppingCart, Package, Grid3X3, X, LogOut, Coffee, Building, Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { LayoutDashboard, ShoppingCart, Package, Grid3X3, X, LogOut, Coffee, Building, Settings, ChevronDown, Store } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from '@/lib/AuthContext';
+import { supabase, setCurrentBusinessId } from '@/api/supabaseClient';
 import db from '@/api/supabaseClient';
+
+const SELECTED_BID_KEY = 'super_admin_selected_bid';
 
 const getNavItems = (user) => {
   const base = [
@@ -35,16 +38,95 @@ function NavLink({ item, active, onClick }) {
   );
 }
 
+// مبدّل الكافيهات للسوبر أدمن
+function BusinessSwitcher({ selectedBid, onSelect }) {
+  const [open, setOpen] = useState(false);
+
+  const { data: businesses = [] } = useQuery({
+    queryKey: ['all-businesses-switcher'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('businesses').select('id, name').order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 60_000,
+  });
+
+  const current = businesses.find(b => b.id === selectedBid);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100 transition-colors"
+      >
+        <Store className="w-4 h-4 text-amber-600 shrink-0" />
+        <span className="flex-1 text-right text-sm font-medium truncate">
+          {current?.name || 'اختر كافيه...'}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-amber-600 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 left-0 top-full mt-1 z-20 bg-white rounded-xl border border-border shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+            {businesses.length === 0 && (
+              <p className="px-4 py-3 text-sm text-muted-foreground">لا توجد كافيهات</p>
+            )}
+            {businesses.map(b => (
+              <button
+                key={b.id}
+                onClick={() => { onSelect(b.id); setOpen(false); }}
+                className={`w-full text-right px-4 py-2.5 text-sm hover:bg-accent transition-colors flex items-center gap-2 ${
+                  selectedBid === b.id ? 'bg-primary/10 text-primary font-medium' : ''
+                }`}
+              >
+                <Coffee className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                {b.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Layout() {
   const { user, businessSettings } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navItems = getNavItems(user);
+  const isSuperAdmin = user?.role === 'super_admin';
 
+  // حالة الكافيه المختارة للسوبر أدمن (محفوظة في localStorage)
+  const [selectedBid, setSelectedBid] = useState(() => {
+    if (isSuperAdmin) {
+      return localStorage.getItem(SELECTED_BID_KEY) || null;
+    }
+    return null;
+  });
+
+  // عند تغيير الاختيار: حفظ في localStorage وتحديث currentBusinessId
+  const handleSelectBusiness = (bid) => {
+    setSelectedBid(bid);
+    localStorage.setItem(SELECTED_BID_KEY, bid);
+    setCurrentBusinessId(bid);
+  };
+
+  // تطبيق الاختيار المحفوظ عند التحميل
+  useEffect(() => {
+    if (isSuperAdmin && selectedBid) {
+      setCurrentBusinessId(selectedBid);
+    }
+  }, [isSuperAdmin, selectedBid]);
+
+  // اسم ولوغو الكافيه: للسوبر أدمن يعتمد على ما اختاره
   const cafeName = businessSettings?.name || 'المنيو الذكي';
   const cafeLogoUrl = businessSettings?.logo_url;
 
-  const roleLabel = user?.role === 'super_admin' ? 'مدير عام' : user?.role === 'admin' ? 'مدير' : 'كاشير';
+  const roleLabel = isSuperAdmin ? 'مدير عام' : user?.role === 'admin' ? 'مدير' : 'كاشير';
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
@@ -53,7 +135,7 @@ export default function Layout() {
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* ===== Sidebar (desktop always, mobile on open) ===== */}
+      {/* ===== Sidebar ===== */}
       <aside className={`
         fixed inset-y-0 right-0 z-50 w-64 bg-card border-l border-border flex flex-col
         transition-transform duration-300
@@ -76,6 +158,17 @@ export default function Layout() {
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Business Switcher - للسوبر أدمن فقط */}
+        {isSuperAdmin && (
+          <div className="px-3 pt-3 pb-1">
+            <p className="text-[10px] text-muted-foreground font-medium px-1 mb-1.5">عرض بيانات كافيه:</p>
+            <BusinessSwitcher selectedBid={selectedBid} onSelect={handleSelectBusiness} />
+            {!selectedBid && (
+              <p className="text-[10px] text-amber-600 px-1 mt-1.5">⚠️ اختر كافيه لعرض بياناتها</p>
+            )}
+          </div>
+        )}
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
@@ -118,6 +211,10 @@ export default function Layout() {
             }
             <span className="font-heading font-bold text-sm">{cafeName}</span>
           </div>
+          {/* للسوبر أدمن في الجوال: تنبيه صغير عند عدم اختيار كافيه */}
+          {isSuperAdmin && !selectedBid && (
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">اختر كافيه</span>
+          )}
           <button
             onClick={() => setSidebarOpen(true)}
             className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-accent"

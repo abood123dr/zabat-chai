@@ -130,3 +130,21 @@ create policy "allow_all" on room_sessions for all using (true) with check (true
 
 -- Realtime للطلبات
 alter publication supabase_realtime add table orders;
+
+-- ===== Indexes لتسريع الاستعلامات =====
+-- هذه الـ indexes ضرورية لأداء سريع - شغّلها في Supabase SQL Editor
+create index if not exists idx_categories_business_id   on categories(business_id);
+create index if not exists idx_products_business_id     on products(business_id);
+create index if not exists idx_orders_business_id       on orders(business_id);
+create index if not exists idx_orders_status            on orders(status);
+create index if not exists idx_orders_created_date      on orders(created_date desc);
+create index if not exists idx_dining_tables_business   on dining_tables(business_id);
+create index if not exists idx_room_sessions_business   on room_sessions(business_id);
+create index if not exists idx_service_requests_business on service_requests(business_id);
+create index if not exists idx_service_requests_status  on service_requests(status);
+
+-- أعمدة مفقودة (شغّلها إذا لم تكن موجودة)
+alter table categories add column if not exists icon text default '☕';
+alter table categories add column if not exists image_url text;
+alter table products   add column if not exists offer_price numeric default 0;
+alter table orders     add column if not exists order_number text;

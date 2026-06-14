@@ -29,8 +29,13 @@ const TABLE_MAP = {
 
 function createEntityAdapter(tableName) {
   const applyTenantFilter = (query) => {
-    if (TENANT_TABLES.has(tableName) && currentBusinessId) {
-      query = query.eq('business_id', currentBusinessId)
+    if (TENANT_TABLES.has(tableName)) {
+      if (currentBusinessId) {
+        query = query.eq('business_id', currentBusinessId)
+      } else {
+        // منع تسريب بيانات أي كافيه عند غياب business_id
+        query = query.eq('business_id', '00000000-0000-0000-0000-000000000000')
+      }
     }
     return query
   }

@@ -41,7 +41,7 @@ export default function Layout() {
   const location = useLocation();
   const navItems = getNavItems(user);
 
-  const cafeName = businessSettings?.name || (user?.role === 'super_admin' ? 'ظبط شاي' : 'ظبط شاي');
+  const cafeName = businessSettings?.name || 'المنيو الذكي';
   const cafeLogoUrl = businessSettings?.logo_url;
 
   const roleLabel = user?.role === 'super_admin' ? 'مدير عام' : user?.role === 'admin' ? 'مدير' : 'كاشير';

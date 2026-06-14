@@ -87,7 +87,7 @@ export default function BusinessSettings() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>اسم الكافيه (عربي) *</Label>
-                <Input value={form.name} onChange={set("name")} required placeholder="ظبط شاي" />
+                <Input value={form.name} onChange={set("name")} required placeholder="اسم الكافيه" />
               </div>
               <div className="space-y-1.5">
                 <Label>اسم الكافيه (إنجليزي)</Label>

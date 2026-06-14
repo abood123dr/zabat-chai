@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette } from "lucide-react";
+import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette, Share2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,12 @@ export default function BusinessSettings() {
     primary_color: "32 85% 48%",
     hero_image: "",
     menu_tagline: "",
+    instagram_url: "",
+    twitter_url: "",
+    snapchat_url: "",
+    tiktok_url: "",
+    whatsapp: "",
+    google_review_url: "",
   });
   const [saved, setSaved] = useState(false);
 
@@ -42,9 +48,15 @@ export default function BusinessSettings() {
         currency:      businessSettings.currency      || "ر.س",
         opening_time:  businessSettings.opening_time  || "09:00",
         closing_time:  businessSettings.closing_time  || "24:00",
-        primary_color: businessSettings.primary_color || "32 85% 48%",
-        hero_image:    businessSettings.hero_image    || "",
-        menu_tagline:  businessSettings.menu_tagline  || "",
+        primary_color:     businessSettings.primary_color     || "32 85% 48%",
+        hero_image:        businessSettings.hero_image        || "",
+        menu_tagline:      businessSettings.menu_tagline      || "",
+        instagram_url:     businessSettings.instagram_url     || "",
+        twitter_url:       businessSettings.twitter_url       || "",
+        snapchat_url:      businessSettings.snapchat_url      || "",
+        tiktok_url:        businessSettings.tiktok_url        || "",
+        whatsapp:          businessSettings.whatsapp          || "",
+        google_review_url: businessSettings.google_review_url || "",
       });
     }
   }, [businessSettings]);
@@ -172,6 +184,55 @@ export default function BusinessSettings() {
                   زر ثانوي
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* التواصل الاجتماعي */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Share2 className="w-4 h-4 text-primary" /> التواصل الاجتماعي
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">📸 Instagram</Label>
+                <Input value={form.instagram_url} onChange={set("instagram_url")} placeholder="https://instagram.com/..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">𝕏 Twitter / X</Label>
+                <Input value={form.twitter_url} onChange={set("twitter_url")} placeholder="https://x.com/..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">👻 Snapchat</Label>
+                <Input value={form.snapchat_url} onChange={set("snapchat_url")} placeholder="https://snapchat.com/add/..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">🎵 TikTok</Label>
+                <Input value={form.tiktok_url} onChange={set("tiktok_url")} placeholder="https://tiktok.com/@..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">💬 WhatsApp</Label>
+                <Input value={form.whatsapp} onChange={set("whatsapp")} placeholder="9665xxxxxxxx" dir="ltr" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* رابط تقييم Google */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> تقييم Google Maps
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1.5">
+              <Label>رابط صفحة التقييم</Label>
+              <Input value={form.google_review_url} onChange={set("google_review_url")} placeholder="https://g.page/r/..." dir="ltr" />
+              <p className="text-xs text-muted-foreground">يظهر كزر "قيّم تجربتك" في فوتر المنيو</p>
             </div>
           </CardContent>
         </Card>

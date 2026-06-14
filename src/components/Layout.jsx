@@ -1,19 +1,18 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { LayoutDashboard, ShoppingCart, Package, Grid3X3, X, LogOut, Coffee, Building, Settings, ChevronDown, Store } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from '@/lib/AuthContext';
-import { supabase, setCurrentBusinessId } from '@/api/supabaseClient';
+import { supabase } from '@/api/supabaseClient';
 import db from '@/api/supabaseClient';
-
-const SELECTED_BID_KEY = 'super_admin_selected_bid';
+import { BusinessProvider, useBusiness } from '@/lib/BusinessContext';
 
 const getNavItems = (user) => {
   const base = [
-    { path: "/", label: "لوحة التحكم", icon: LayoutDashboard },
-    { path: "/cashier", label: "الكاشير", icon: ShoppingCart },
-    { path: "/products", label: "المنتجات", icon: Package },
-    { path: "/tables", label: "الطاولات", icon: Grid3X3 },
+    { path: "/",          label: "لوحة التحكم", icon: LayoutDashboard },
+    { path: "/cashier",   label: "الكاشير",      icon: ShoppingCart },
+    { path: "/products",  label: "المنتجات",     icon: Package },
+    { path: "/tables",    label: "الطاولات",     icon: Grid3X3 },
   ];
   if (user?.role === 'super_admin') {
     base.push({ path: "/businesses", label: "الأعمال", icon: Building });
@@ -38,8 +37,9 @@ function NavLink({ item, active, onClick }) {
   );
 }
 
-// مبدّل الكافيهات للسوبر أدمن
-function BusinessSwitcher({ selectedBid, onSelect }) {
+// مبدّل الكافيهات — يقرأ ويكتب عبر BusinessContext
+function BusinessSwitcher() {
+  const { activeBid, selectBusiness } = useBusiness();
   const [open, setOpen] = useState(false);
 
   const { data: businesses = [] } = useQuery({
@@ -52,7 +52,7 @@ function BusinessSwitcher({ selectedBid, onSelect }) {
     staleTime: 60_000,
   });
 
-  const current = businesses.find(b => b.id === selectedBid);
+  const current = businesses.find(b => b.id === activeBid);
 
   return (
     <div className="relative">
@@ -77,9 +77,9 @@ function BusinessSwitcher({ selectedBid, onSelect }) {
             {businesses.map(b => (
               <button
                 key={b.id}
-                onClick={() => { onSelect(b.id); setOpen(false); }}
+                onClick={() => { selectBusiness(b.id); setOpen(false); }}
                 className={`w-full text-right px-4 py-2.5 text-sm hover:bg-accent transition-colors flex items-center gap-2 ${
-                  selectedBid === b.id ? 'bg-primary/10 text-primary font-medium' : ''
+                  activeBid === b.id ? 'bg-primary/10 text-primary font-semibold' : ''
                 }`}
               >
                 <Coffee className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
@@ -93,40 +93,17 @@ function BusinessSwitcher({ selectedBid, onSelect }) {
   );
 }
 
-export default function Layout() {
+// المحتوى الداخلي للـ Layout (بعد تهيئة الـ context)
+function LayoutInner() {
   const { user, businessSettings } = useAuth();
+  const { activeBid, isSuperAdmin } = useBusiness();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navItems = getNavItems(user);
-  const isSuperAdmin = user?.role === 'super_admin';
 
-  // حالة الكافيه المختارة للسوبر أدمن (محفوظة في localStorage)
-  const [selectedBid, setSelectedBid] = useState(() => {
-    if (isSuperAdmin) {
-      return localStorage.getItem(SELECTED_BID_KEY) || null;
-    }
-    return null;
-  });
-
-  // عند تغيير الاختيار: حفظ في localStorage وتحديث currentBusinessId
-  const handleSelectBusiness = (bid) => {
-    setSelectedBid(bid);
-    localStorage.setItem(SELECTED_BID_KEY, bid);
-    setCurrentBusinessId(bid);
-  };
-
-  // تطبيق الاختيار المحفوظ عند التحميل
-  useEffect(() => {
-    if (isSuperAdmin && selectedBid) {
-      setCurrentBusinessId(selectedBid);
-    }
-  }, [isSuperAdmin, selectedBid]);
-
-  // اسم ولوغو الكافيه: للسوبر أدمن يعتمد على ما اختاره
-  const cafeName = businessSettings?.name || 'المنيو الذكي';
+  const cafeName    = businessSettings?.name || 'المنيو الذكي';
   const cafeLogoUrl = businessSettings?.logo_url;
-
-  const roleLabel = isSuperAdmin ? 'مدير عام' : user?.role === 'admin' ? 'مدير' : 'كاشير';
+  const roleLabel   = isSuperAdmin ? 'مدير عام' : user?.role === 'admin' ? 'مدير' : 'كاشير';
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
@@ -159,12 +136,12 @@ export default function Layout() {
           </button>
         </div>
 
-        {/* Business Switcher - للسوبر أدمن فقط */}
+        {/* Business Switcher للسوبر أدمن */}
         {isSuperAdmin && (
           <div className="px-3 pt-3 pb-1">
             <p className="text-[10px] text-muted-foreground font-medium px-1 mb-1.5">عرض بيانات كافيه:</p>
-            <BusinessSwitcher selectedBid={selectedBid} onSelect={handleSelectBusiness} />
-            {!selectedBid && (
+            <BusinessSwitcher />
+            {!activeBid && (
               <p className="text-[10px] text-amber-600 px-1 mt-1.5">⚠️ اختر كافيه لعرض بياناتها</p>
             )}
           </div>
@@ -211,8 +188,7 @@ export default function Layout() {
             }
             <span className="font-heading font-bold text-sm">{cafeName}</span>
           </div>
-          {/* للسوبر أدمن في الجوال: تنبيه صغير عند عدم اختيار كافيه */}
-          {isSuperAdmin && !selectedBid && (
+          {isSuperAdmin && !activeBid && (
             <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">اختر كافيه</span>
           )}
           <button
@@ -254,5 +230,15 @@ export default function Layout() {
         })}
       </nav>
     </div>
+  );
+}
+
+// الـ wrapper الرئيسي: يهيّئ BusinessContext قبل رسم أي شيء
+export default function Layout() {
+  const { user } = useAuth();
+  return (
+    <BusinessProvider user={user}>
+      <LayoutInner />
+    </BusinessProvider>
   );
 }

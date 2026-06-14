@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import db from "@/api/supabaseClient";
+import { useBusiness } from "@/lib/BusinessContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, VolumeX, BellRing, Clock, CheckCheck, ChevronLeft, ChevronRight, AlertTriangle, TrendingUp, ShoppingBag, Loader2 } from "lucide-react";
 import RoomsPanel from "../components/cashier/RoomsPanel";
@@ -138,10 +139,12 @@ export default function CashierDashboard() {
   const [mainTab, setMainTab]     = useState("orders");
   const [activeCol, setActiveCol] = useState(0);
   const queryClient = useQueryClient();
+  const { activeBid, isSuperAdmin } = useBusiness();
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", activeBid],
     queryFn: () => db.entities.Product.list(),
+    enabled: !!activeBid,
   });
   const productImages = useMemo(() => {
     const m = {};
@@ -150,15 +153,17 @@ export default function CashierDashboard() {
   }, [products]);
 
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["orders"],
+    queryKey: ["orders", activeBid],
     queryFn: () => db.entities.Order.list("-created_date", 200),
     refetchInterval: 8000,
+    enabled: !!activeBid,
   });
 
   const { data: serviceReqs = [] } = useQuery({
-    queryKey: ["service_requests"],
+    queryKey: ["service_requests", activeBid],
     queryFn: () => db.entities.ServiceRequest.filter({ status: "pending" }, "-created_date"),
     refetchInterval: 8000,
+    enabled: !!activeBid,
   });
 
   const updateStatus = useMutation({
@@ -207,6 +212,17 @@ export default function CashierDashboard() {
   }, [orders]);
 
   const colOrders = (key) => orders.filter(o => o.status === key);
+
+  // السوبر أدمن بدون اختيار كافيه
+  if (isSuperAdmin && !activeBid) {
+    return (
+      <div dir="rtl" className="flex flex-col items-center justify-center py-32 gap-4 text-center">
+        <div className="text-6xl">☕</div>
+        <p className="text-xl font-black text-gray-700">اختر كافيه من القائمة الجانبية</p>
+        <p className="text-gray-400 text-sm">ستظهر طلبات الكافيه المختار هنا</p>
+      </div>
+    );
+  }
 
   return (
     <div dir="rtl" className="space-y-4">

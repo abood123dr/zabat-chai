@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, useEffect } from "react";
 import db from "@/api/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
+import { useBusiness } from "@/lib/BusinessContext";
 import {
   TrendingUp, TrendingDown, ShoppingCart, DollarSign,
   Clock, Package, ArrowLeft, RefreshCw, BarChart3, Activity
@@ -72,17 +73,20 @@ function OrderStatusBadge({ status }) {
 // ===== الصفحة الرئيسية =====
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const { activeBid, isSuperAdmin } = useBusiness();
   const [refetchKey, setRefetchKey] = useState(0);
 
   const { data: orders = [], isLoading, dataUpdatedAt } = useQuery({
-    queryKey: ["orders", refetchKey],
+    queryKey: ["orders", activeBid, refetchKey],
     queryFn: () => db.entities.Order.list("-created_date", 500),
     refetchInterval: 30000,
+    enabled: !!activeBid,
   });
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products-count"],
+    queryKey: ["products-count", activeBid],
     queryFn: () => db.entities.Product.list(),
+    enabled: !!activeBid,
   });
 
   const stats = useMemo(() => {
@@ -145,6 +149,16 @@ export default function AdminDashboard() {
   }, [orders]);
 
   const recentOrders = orders.filter(o => o.status !== "delivered").slice(0, 8);
+
+  if (isSuperAdmin && !activeBid) {
+    return (
+      <div dir="rtl" className="flex flex-col items-center justify-center py-32 gap-4 text-center">
+        <div className="text-6xl">☕</div>
+        <p className="text-xl font-black text-gray-700">اختر كافيه من القائمة الجانبية</p>
+        <p className="text-gray-400 text-sm">ستظهر إحصائيات وتقارير الكافيه المختار هنا</p>
+      </div>
+    );
+  }
 
   return (
     <div dir="rtl" className="space-y-5">

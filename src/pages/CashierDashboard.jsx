@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import db from "@/api/supabaseClient";
+import db, { supabase } from "@/api/supabaseClient";
 import { useBusiness } from "@/lib/BusinessContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, VolumeX, BellRing, Clock, CheckCheck, ChevronLeft, ChevronRight, AlertTriangle, TrendingUp, ShoppingBag, Loader2, Tag, X } from "lucide-react";
@@ -43,14 +43,12 @@ function LiveTimer({ createdAt, status }) {
 }
 
 // ========== كارت طلب ==========
-function OrderCard({ order, onNext, nextLabel, color, productImages, onDiscount }) {
+function OrderCard({ order, onNext, nextLabel, color, productImages, onDiscount, discountPresets = [], discountEnabled = false }) {
   const items = useMemo(() => { try { return JSON.parse(order.items); } catch { return []; } }, [order.items]);
   const mins  = Math.floor((Date.now() - new Date(order.created_date)) / 60000);
   const isLate = (order.status === "received" && mins >= 5) || (order.status === "preparing" && mins >= 12);
   const isWarn = (order.status === "received" && mins >= 3) || (order.status === "preparing" && mins >= 8);
   const [showDisc, setShowDisc] = useState(false);
-  const [discType, setDiscType] = useState("percent");
-  const [discVal,  setDiscVal]  = useState("");
 
   return (
     <motion.div
@@ -112,55 +110,53 @@ function OrderCard({ order, onNext, nextLabel, color, productImages, onDiscount 
         </div>
       )}
 
-      {/* خصم */}
-      {showDisc ? (
-        <div className="mx-3 mb-2 p-2.5 bg-purple-50 border border-purple-100 rounded-xl space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-purple-200 shrink-0">
-              {[["percent","%"],["fixed","ر.س"]].map(([v, l]) => (
-                <button key={v} type="button" onClick={() => setDiscType(v)}
-                  className={`px-2.5 py-1 text-xs font-bold transition-colors ${discType === v ? "bg-purple-600 text-white" : "bg-white text-purple-700"}`}>
-                  {l}
-                </button>
-              ))}
-            </div>
-            <input
-              type="number" min="0" max={discType === "percent" ? 100 : undefined}
-              value={discVal} onChange={e => setDiscVal(e.target.value)}
-              placeholder={discType === "percent" ? "10" : "5"}
-              className="flex-1 px-2.5 py-1.5 text-sm border border-purple-200 rounded-lg focus:outline-none focus:border-purple-400 min-w-0"
-              autoFocus
-            />
-            <button type="button" onClick={() => { setShowDisc(false); setDiscVal(""); }}
-              className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-              <X className="w-3.5 h-3.5 text-gray-500" />
+      {/* خصم — يظهر فقط إذا مفعّل في الإعدادات */}
+      {discountEnabled && (
+        showDisc ? (
+          <div className="mx-3 mb-2 p-3 bg-purple-50 border border-purple-100 rounded-xl space-y-2">
+            {discountPresets.length === 0 ? (
+              <p className="text-xs text-center text-purple-700 py-1">
+                لا توجد خصومات — أضفها من إعدادات المتجر
+              </p>
+            ) : (
+              <>
+                <p className="text-[11px] font-bold text-purple-700">اختر نوع الخصم:</p>
+                <div className="flex flex-wrap gap-2">
+                  {discountPresets.map((p, i) => (
+                    <motion.button key={i} type="button" whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        const originalTotal = order.original_total || order.total;
+                        const discAmount = p.type === "percent"
+                          ? Math.min(originalTotal * p.value / 100, originalTotal)
+                          : Math.min(p.value, originalTotal);
+                        onDiscount({ id: order.id, discount_type: p.type, discount_amount: p.value, original_total: originalTotal, total: Math.max(0, originalTotal - discAmount) });
+                        setShowDisc(false);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 text-white text-xs font-black shadow-sm">
+                      <Tag className="w-3 h-3" />
+                      {p.name}
+                      <span className="bg-white/20 px-1.5 py-0.5 rounded-full">
+                        {p.value}{p.type === "percent" ? "%" : " ر.س"}
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+              </>
+            )}
+            <button type="button" onClick={() => setShowDisc(false)}
+              className="text-xs text-purple-500 hover:text-purple-700 transition-colors">إلغاء</button>
+          </div>
+        ) : (
+          <div className="mx-3 mb-1">
+            <button type="button" onClick={() => setShowDisc(true)}
+              className="flex items-center gap-1 text-[11px] text-purple-600 hover:text-purple-800 transition-colors font-semibold">
+              <Tag className="w-3 h-3" />
+              {order.original_total && order.original_total !== order.total
+                ? `خصم مطبّق (${order.original_total} ← ${order.total} ر.س)`
+                : "تطبيق خصم"}
             </button>
           </div>
-          <button type="button"
-            onClick={() => {
-              const val = parseFloat(discVal);
-              if (!val || val <= 0) return;
-              const originalTotal = order.original_total || order.total;
-              const discAmount = discType === "percent"
-                ? Math.min(originalTotal * val / 100, originalTotal)
-                : Math.min(val, originalTotal);
-              onDiscount({ id: order.id, discount_type: discType, discount_amount: val, original_total: originalTotal, total: Math.max(0, originalTotal - discAmount) });
-              setShowDisc(false); setDiscVal("");
-            }}
-            className="w-full py-1.5 rounded-lg bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-colors">
-            تطبيق الخصم
-          </button>
-        </div>
-      ) : (
-        <div className="mx-3 mb-1">
-          <button type="button" onClick={() => setShowDisc(true)}
-            className="flex items-center gap-1 text-[11px] text-purple-600 hover:text-purple-800 transition-colors font-semibold">
-            <Tag className="w-3 h-3" />
-            {order.original_total && order.original_total !== order.total
-              ? `خصم مطبّق (${order.original_total} ← ${order.total} ر.س)`
-              : "تطبيق خصم"}
-          </button>
-        </div>
+        )
       )}
 
       {/* زر الإجراء */}
@@ -242,6 +238,21 @@ export default function CashierDashboard() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["service_requests"] }),
   });
+
+  const { data: bizDiscount } = useQuery({
+    queryKey: ["biz-discount", activeBid],
+    queryFn: async () => {
+      const { data } = await supabase.from("businesses").select("discount_enabled, discount_presets").eq("id", activeBid).single();
+      return data;
+    },
+    enabled: !!activeBid,
+    staleTime: 5 * 60_000,
+  });
+
+  const discountEnabled = bizDiscount?.discount_enabled ?? false;
+  const discountPresets = useMemo(() => {
+    try { return JSON.parse(bizDiscount?.discount_presets || "[]"); } catch { return []; }
+  }, [bizDiscount?.discount_presets]);
 
   useEffect(() => {
     const unsub = db.entities.Order.subscribe((e) => {
@@ -457,6 +468,8 @@ export default function CashierDashboard() {
                               nextLabel={col.nextLabel} color={col.color}
                               onNext={() => updateStatus.mutate({ id: order.id, status: col.next })}
                               onDiscount={(data) => applyDiscount.mutate(data)}
+                              discountEnabled={discountEnabled}
+                              discountPresets={discountPresets}
                             />
                           ))
                         )}
@@ -508,6 +521,8 @@ export default function CashierDashboard() {
                         nextLabel={COLS[activeCol].nextLabel} color={COLS[activeCol].color}
                         onNext={() => updateStatus.mutate({ id: order.id, status: COLS[activeCol].next })}
                         onDiscount={(data) => applyDiscount.mutate(data)}
+                        discountEnabled={discountEnabled}
+                        discountPresets={discountPresets}
                       />
                     ))
                   )}

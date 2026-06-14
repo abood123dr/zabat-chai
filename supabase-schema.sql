@@ -178,6 +178,10 @@ alter table service_requests enable row level security;
 create policy "allow_all" on service_requests for all using (true) with check (true);
 alter publication supabase_realtime add table service_requests;
 
+-- ===== الخصومات =====
+alter table businesses add column if not exists discount_enabled boolean default false;
+alter table businesses add column if not exists discount_presets text; -- JSON: [{name,value,type:"percent"|"fixed"}]
+
 -- ===== أعمدة العملات =====
 alter table businesses add column if not exists currency_code     text    default 'SAR';
 alter table businesses add column if not exists currency_dual     boolean default false;

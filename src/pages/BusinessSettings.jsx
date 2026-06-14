@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette, Share2, Star, Upload, X, Link, ImageIcon, DollarSign, ArrowLeftRight } from "lucide-react";
+import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette, Share2, Star, Upload, X, Link, ImageIcon, DollarSign, ArrowLeftRight, Tag, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -130,6 +130,69 @@ const THEME_COLORS = [
   { name: "ذهبي",    hsl: "45 93% 47%",   hex: "#eab308" },
 ];
 
+// ===== محرر خصومات الكاشير =====
+function DiscountPresetsEditor({ value, onChange }) {
+  const presets = (() => { try { return JSON.parse(value || "[]"); } catch { return []; } })();
+  const emit = (p) => onChange(JSON.stringify(p));
+
+  const [newName, setNewName] = useState("");
+  const [newVal,  setNewVal]  = useState("");
+  const [newType, setNewType] = useState("percent");
+
+  const add = () => {
+    const v = parseFloat(newVal);
+    if (!newName.trim() || !v || v <= 0) return;
+    emit([...presets, { name: newName.trim(), value: v, type: newType }]);
+    setNewName(""); setNewVal("");
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* القائمة الحالية */}
+      {presets.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-3 bg-muted/30 rounded-xl">
+          لا توجد خصومات — أضف أول خصم أدناه
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {presets.map((p, i) => (
+            <div key={i} className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-xl px-3 py-2">
+              <span className="text-sm font-bold text-purple-800 flex-1">{p.name}</span>
+              <span className="text-sm font-black text-purple-600">
+                {p.value}{p.type === "percent" ? "%" : " ر.س"}
+              </span>
+              <button type="button" onClick={() => emit(presets.filter((_, j) => j !== i))}
+                className="w-6 h-6 rounded-lg bg-purple-100 hover:bg-red-100 flex items-center justify-center transition-colors">
+                <X className="w-3.5 h-3.5 text-purple-600 hover:text-red-600" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* إضافة خصم جديد */}
+      <div className="flex items-center gap-2">
+        <Input value={newName} onChange={e => setNewName(e.target.value)}
+          placeholder="اسم الخصم (مثال: خصم موظف)" className="flex-1 h-9 text-sm" />
+        <Input type="number" min="0" step="0.5" value={newVal} onChange={e => setNewVal(e.target.value)}
+          placeholder="القيمة" className="w-20 h-9 text-sm text-center" />
+        <div className="flex rounded-lg overflow-hidden border border-border shrink-0">
+          {[["percent","%"],["fixed","ر.س"]].map(([v,l]) => (
+            <button key={v} type="button" onClick={() => setNewType(v)}
+              className={`px-2.5 py-1.5 text-xs font-bold transition-colors ${newType === v ? "bg-purple-600 text-white" : "bg-card text-muted-foreground hover:bg-muted"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={add}
+          className="w-9 h-9 rounded-lg bg-purple-600 hover:bg-purple-700 flex items-center justify-center transition-colors shrink-0">
+          <Plus className="w-4 h-4 text-white" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function BusinessSettings() {
   const { user, businessSettings, refreshBusinessSettings } = useAuth();
   const [form, setForm] = useState({
@@ -146,6 +209,8 @@ export default function BusinessSettings() {
     tiktok_url: "",
     whatsapp: "",
     google_review_url: "",
+    discount_enabled: false,
+    discount_presets: "[]",
   });
   const [saved, setSaved] = useState(false);
 
@@ -173,6 +238,8 @@ export default function BusinessSettings() {
         tiktok_url:        businessSettings.tiktok_url        || "",
         whatsapp:          businessSettings.whatsapp          || "",
         google_review_url: businessSettings.google_review_url || "",
+        discount_enabled:  businessSettings.discount_enabled  || false,
+        discount_presets:  businessSettings.discount_presets  || "[]",
       });
     }
   }, [businessSettings]);
@@ -456,6 +523,37 @@ export default function BusinessSettings() {
                 <Input type="time" value={form.closing_time} onChange={set("closing_time")} />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* الخصومات */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Tag className="w-4 h-4 text-primary" /> خصومات الكاشير
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">تفعيل خاصية الخصم</p>
+                <p className="text-xs text-muted-foreground">يظهر زر الخصم على طلبات الكاشير</p>
+              </div>
+              <button type="button"
+                onClick={() => setForm(p => ({ ...p, discount_enabled: !p.discount_enabled }))}
+                className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${form.discount_enabled ? "bg-purple-500" : "bg-gray-300"}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${form.discount_enabled ? "right-1" : "right-7"}`} />
+              </button>
+            </div>
+            {form.discount_enabled && (
+              <div className="pt-1 border-t border-border">
+                <p className="text-xs text-muted-foreground mb-3">حدد الخصومات المسموح بها للكاشير</p>
+                <DiscountPresetsEditor
+                  value={form.discount_presets}
+                  onChange={v => setForm(p => ({ ...p, discount_presets: v }))}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 

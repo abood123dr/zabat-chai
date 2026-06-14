@@ -14,7 +14,8 @@
     { "src": "https://api.dicebear.com/7.x/initials/svg?seed=م&backgroundColor=e8820c&fontSize=40", "sizes": "512x512", "type": "image/svg+xml" }
   ],
   "shortcuts": [
-    { "name": "الكاشير",  "url": "/cashier",  "description": "لوحة الكاشير" },
-    { "name": "المنتجات", "url": "/products", "description": "إدارة المنتجات" }
+    { "name": "الكاشير",       "url": "/cashier",  "description": "لوحة الكاشير" },
+    { "name": "المنتجات",     "url": "/products", "description": "إدارة المنتجات" },
+    { "name": "شاشة المطبخ", "url": "/kitchen",  "description": "عرض طلبات المطبخ" }
   ]
 }

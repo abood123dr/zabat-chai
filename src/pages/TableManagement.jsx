@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import db from "@/api/supabaseClient";
 
-import { Plus, Pencil, Trash2, QrCode, Copy, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, QrCode, Copy, Check, Printer, Download, MonitorPlay } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,16 +79,75 @@ export default function TableManagement() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const downloadQr = (t) => {
+    const link = document.createElement("a");
+    link.href = getQrUrl(t);
+    link.download = `qr-${t.name}.png`;
+    link.target = "_blank";
+    link.click();
+  };
+
+  const printAllQRs = () => {
+    const bid = user?.business_id;
+    const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <title>QR Codes - جميع الطاولات</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+    h1 { text-align: center; padding: 20px; font-size: 20px; color: #333; border-bottom: 2px solid #f0f0f0; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 0 20px 20px; }
+    .card { border: 2px solid #e5e7eb; border-radius: 16px; padding: 16px; text-align: center; page-break-inside: avoid; }
+    .card img { width: 140px; height: 140px; margin: 0 auto 10px; display: block; }
+    .name { font-weight: 900; font-size: 18px; color: #111; margin-bottom: 4px; }
+    .sub  { font-size: 13px; color: #666; }
+    @media print { .grid { gap: 10px; } }
+  </style>
+</head>
+<body>
+  <h1>🗂️ QR Codes — جميع الطاولات والغرف</h1>
+  <div class="grid">
+    ${filtered.map(t => `
+      <div class="card">
+        <img src="${getQrUrl(t)}" alt="QR" crossorigin="anonymous"/>
+        <p class="name">${t.name}</p>
+        <p class="sub">${t.type === 'room' ? '🎮 غرفة سوني' : '🪑 طاولة'} · رقم ${t.number}</p>
+      </div>
+    `).join("")}
+  </div>
+  <script>window.onload = () => setTimeout(() => window.print(), 800);<\/script>
+</body>
+</html>`;
+    const win = window.open("", "_blank");
+    win.document.write(html);
+    win.document.close();
+  };
+
+  const openKitchen = () => {
+    const bid = user?.business_id;
+    window.open(`/kitchen${bid ? `?bid=${bid}` : ""}`, "_blank");
+  };
+
   const filtered = filter === "all" ? tables : tables.filter(t => t.type === filter);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="font-heading text-2xl font-bold">الطاولات والغرف</h1>
           <p className="text-muted-foreground text-sm">{tables.length} طاولة/غرفة</p>
         </div>
-        <Button className="rounded-xl gap-2" onClick={openAdd}><Plus className="w-4 h-4" />إضافة</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" className="rounded-xl gap-2 text-sm" onClick={openKitchen}>
+            <MonitorPlay className="w-4 h-4" /> شاشة المطبخ
+          </Button>
+          <Button variant="outline" className="rounded-xl gap-2 text-sm" onClick={printAllQRs}>
+            <Printer className="w-4 h-4" /> طباعة كل QR
+          </Button>
+          <Button className="rounded-xl gap-2" onClick={openAdd}><Plus className="w-4 h-4" />إضافة</Button>
+        </div>
       </div>
 
       <Tabs value={filter} onValueChange={setFilter} className="mb-4">
@@ -131,12 +190,17 @@ export default function TableManagement() {
           <DialogHeader><DialogTitle className="font-heading">QR Code - {qrDialog?.name}</DialogTitle></DialogHeader>
           {qrDialog && (
             <div className="space-y-4">
-              <img src={getQrUrl(qrDialog)} alt="QR Code" className="w-48 h-48 mx-auto rounded-xl shadow-md" />
-              <p className="text-xs text-muted-foreground break-all">{getMenuUrl(qrDialog)}</p>
-              <Button variant="outline" className="rounded-xl gap-2" onClick={() => copyUrl(qrDialog)}>
-                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copied ? "تم النسخ" : "نسخ الرابط"}
-              </Button>
+              <img src={getQrUrl(qrDialog)} alt="QR Code" className="w-56 h-56 mx-auto rounded-2xl shadow-lg" />
+              <p className="text-xs text-muted-foreground break-all bg-muted/50 p-2 rounded-lg">{getMenuUrl(qrDialog)}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="rounded-xl gap-2 flex-1" onClick={() => copyUrl(qrDialog)}>
+                  {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "تم النسخ" : "نسخ الرابط"}
+                </Button>
+                <Button variant="outline" className="rounded-xl gap-2 flex-1" onClick={() => downloadQr(qrDialog)}>
+                  <Download className="w-4 h-4" /> تحميل
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

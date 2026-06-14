@@ -15,6 +15,7 @@ const ForgotPassword    = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword     = lazy(() => import('./pages/ResetPassword'));
 const CustomerMenu      = lazy(() => import('./pages/CustomerMenu'));
 const OrderTracking     = lazy(() => import('./pages/OrderTracking'));
+const KitchenDisplay    = lazy(() => import('./pages/KitchenDisplay'));
 const AdminDashboard    = lazy(() => import('./pages/AdminDashboard'));
 const CashierDashboard  = lazy(() => import('./pages/CashierDashboard'));
 const ProductManagement = lazy(() => import('./pages/ProductManagement'));
@@ -35,6 +36,7 @@ function PublicRoutes() {
     <Routes>
       <Route path="/menu" element={<CustomerMenu />} />
       <Route path="/order-tracking" element={<OrderTracking />} />
+      <Route path="/kitchen" element={<KitchenDisplay />} />
     </Routes>
   );
 }
@@ -75,7 +77,7 @@ const DashboardApp = () => {
 function AppRoutes() {
   const path = window.location.pathname;
 
-  if (path.startsWith('/menu') || path.startsWith('/order-tracking')) {
+  if (path.startsWith('/menu') || path.startsWith('/order-tracking') || path.startsWith('/kitchen')) {
     return (
       <Router>
         <Suspense fallback={<PageLoader />}>

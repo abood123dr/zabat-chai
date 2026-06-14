@@ -1,12 +1,101 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette, Share2, Star } from "lucide-react";
+import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette, Share2, Star, Upload, X, Link, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/supabaseClient";
+
+const BUCKET = "images";
+
+function ImageUpload({ value, onChange, folder = "general", label = "الصورة", previewHeight = "h-36" }) {
+  const [uploading, setUploading] = useState(false);
+  const [tab, setTab] = useState(value ? "preview" : "upload");
+  const [urlInput, setUrlInput] = useState("");
+  const inputRef = useRef();
+
+  const upload = async (file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("الصورة أكبر من 5MB"); return; }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop().toLowerCase();
+      const path = `${folder}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      onChange(data.publicUrl);
+      setTab("preview");
+    } catch (e) {
+      alert("فشل الرفع: " + (e.message || "تأكد من إنشاء bucket باسم images في Supabase Storage"));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const applyUrl = () => {
+    if (urlInput.startsWith("http")) { onChange(urlInput); setTab("preview"); }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {value && (
+        <div className={`relative rounded-xl overflow-hidden border border-border ${previewHeight}`}>
+          <img src={value} alt="صورة" className="w-full h-full object-cover" onError={e => e.target.style.opacity='.3'} />
+          <button type="button" onClick={() => { onChange(""); setTab("upload"); }}
+            className="absolute top-2 left-2 w-7 h-7 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+          <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full">✓ تم التحديد</div>
+        </div>
+      )}
+      {(!value || tab !== "preview") && (
+        <div className="border-2 border-dashed border-border rounded-xl overflow-hidden">
+          <div className="flex border-b border-border">
+            <button type="button" onClick={() => setTab("upload")}
+              className={`flex-1 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${tab === "upload" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+              <Upload className="w-3.5 h-3.5" /> رفع من الجهاز
+            </button>
+            <button type="button" onClick={() => setTab("url")}
+              className={`flex-1 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${tab === "url" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+              <Link className="w-3.5 h-3.5" /> رابط URL
+            </button>
+          </div>
+          {tab === "upload" && (
+            <label className={`flex flex-col items-center justify-center gap-2 py-6 cursor-pointer group transition-colors ${uploading ? "opacity-60 pointer-events-none" : "hover:bg-muted/50"}`}>
+              <input ref={inputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => upload(e.target.files?.[0])} disabled={uploading} />
+              {uploading ? (
+                <><Loader2 className="w-8 h-8 text-primary animate-spin" /><p className="text-sm font-medium text-primary">جاري الرفع...</p></>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <ImageIcon className="w-6 h-6 text-primary" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">اضغط لاختيار صورة</p>
+                  <p className="text-xs text-muted-foreground">PNG, JPG, WEBP — حتى 5MB</p>
+                </>
+              )}
+            </label>
+          )}
+          {tab === "url" && (
+            <div className="p-3 space-y-2">
+              <Input value={urlInput} onChange={e => setUrlInput(e.target.value)}
+                placeholder="https://example.com/image.jpg" dir="ltr"
+                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), applyUrl())} />
+              <Button type="button" onClick={applyUrl} className="w-full h-9 rounded-lg" variant="outline" disabled={!urlInput}>
+                تطبيق الرابط
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const THEME_COLORS = [
   { name: "برتقالي", hsl: "32 85% 48%",   hex: "#e8820c" },
@@ -106,11 +195,13 @@ export default function BusinessSettings() {
                 <Input value={form.name_en} onChange={set("name_en")} placeholder="Zabat Chai" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>شعار الكافيه (رابط صورة)</Label>
-              <Input value={form.logo_url} onChange={set("logo_url")} placeholder="https://..." />
-              {form.logo_url && <img src={form.logo_url} alt="شعار" className="w-16 h-16 rounded-xl object-cover border mt-2" onError={e => e.target.style.display='none'} />}
-            </div>
+            <ImageUpload
+              value={form.logo_url}
+              onChange={v => setForm(p => ({ ...p, logo_url: v }))}
+              folder="logos"
+              label="شعار الكافيه (لوقو)"
+              previewHeight="h-24"
+            />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />رقم الهاتف</Label>
@@ -136,11 +227,13 @@ export default function BusinessSettings() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>صورة الغلاف (Hero)</Label>
-              <Input value={form.hero_image} onChange={set("hero_image")} placeholder="https://..." />
-              {form.hero_image && <img src={form.hero_image} alt="غلاف" className="w-full h-32 object-cover rounded-xl border mt-2" onError={e => e.target.style.display='none'} />}
-            </div>
+            <ImageUpload
+              value={form.hero_image}
+              onChange={v => setForm(p => ({ ...p, hero_image: v }))}
+              folder="heroes"
+              label="صورة الغلاف (Hero)"
+              previewHeight="h-40"
+            />
             <div className="space-y-1.5">
               <Label>وصف تحت الاسم في المنيو</Label>
               <Input value={form.menu_tagline} onChange={set("menu_tagline")} placeholder="أفضل تجربة شاي وقهوة" />

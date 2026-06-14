@@ -22,6 +22,7 @@ const ProductManagement = lazy(() => import('./pages/ProductManagement'));
 const TableManagement   = lazy(() => import('./pages/TableManagement'));
 const BusinessManagement = lazy(() => import('./pages/BusinessManagement'));
 const BusinessSettings  = lazy(() => import('./pages/BusinessSettings'));
+const OrderHistory      = lazy(() => import('./pages/OrderHistory'));
 
 function PageLoader() {
   return (
@@ -65,6 +66,7 @@ const DashboardApp = () => {
           <Route path="/cashier" element={<CashierDashboard />} />
           <Route path="/products" element={<ProductManagement />} />
           <Route path="/tables" element={<TableManagement />} />
+          <Route path="/orders" element={<OrderHistory />} />
           <Route path="/businesses" element={<BusinessManagement />} />
           <Route path="/settings" element={<BusinessSettings />} />
         </Route>

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { LayoutDashboard, ShoppingCart, Package, Grid3X3, X, LogOut, Coffee, Building, Settings, ChevronDown, Store } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, Grid3X3, X, LogOut, Coffee, Building, Settings, ChevronDown, Store, History } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
@@ -13,6 +13,7 @@ const getNavItems = (user) => {
     { path: "/cashier",   label: "الكاشير",      icon: ShoppingCart },
     { path: "/products",  label: "المنتجات",     icon: Package },
     { path: "/tables",    label: "الطاولات",     icon: Grid3X3 },
+    { path: "/orders",    label: "الطلبات",      icon: History },
   ];
   if (user?.role === 'super_admin') {
     base.push({ path: "/businesses", label: "الأعمال", icon: Building });

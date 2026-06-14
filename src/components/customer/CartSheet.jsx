@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Minus, Plus, Trash2, Send, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import db, { supabase } from "@/api/supabaseClient";
+import db from "@/api/supabaseClient";
 import { useNavigate } from "react-router-dom";
 
 const QUICK_NOTES = ["بدون سكر", "سكر قليل", "حار 🌶️", "بدون ثلج", "اكسترا شوت", "حليب شوفان"];
@@ -57,13 +57,6 @@ export default function CartSheet({
         total: total,
         customer_action: "none",
       });
-      // الطاولة تصير مشغولة تلقائياً
-      if (order?.business_id && tableNumber) {
-        await supabase.from("dining_tables")
-          .update({ status: "occupied" })
-          .eq("business_id", order.business_id)
-          .eq("number", parseInt(tableNumber));
-      }
       return order;
     },
     onSuccess: (order) => {

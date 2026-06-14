@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import db from "@/api/supabaseClient";
 import { useBusiness } from "@/lib/BusinessContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, VolumeX, BellRing, Clock, CheckCheck, ChevronLeft, ChevronRight, AlertTriangle, TrendingUp, ShoppingBag, Loader2 } from "lucide-react";
+import { Volume2, VolumeX, BellRing, Clock, CheckCheck, ChevronLeft, ChevronRight, AlertTriangle, TrendingUp, ShoppingBag, Loader2, Tag, X } from "lucide-react";
 import RoomsPanel from "../components/cashier/RoomsPanel";
 
 function playAlert() {
@@ -43,11 +43,14 @@ function LiveTimer({ createdAt, status }) {
 }
 
 // ========== كارت طلب ==========
-function OrderCard({ order, onNext, nextLabel, color, productImages }) {
+function OrderCard({ order, onNext, nextLabel, color, productImages, onDiscount }) {
   const items = useMemo(() => { try { return JSON.parse(order.items); } catch { return []; } }, [order.items]);
   const mins  = Math.floor((Date.now() - new Date(order.created_date)) / 60000);
   const isLate = (order.status === "received" && mins >= 5) || (order.status === "preparing" && mins >= 12);
   const isWarn = (order.status === "received" && mins >= 3) || (order.status === "preparing" && mins >= 8);
+  const [showDisc, setShowDisc] = useState(false);
+  const [discType, setDiscType] = useState("percent");
+  const [discVal,  setDiscVal]  = useState("");
 
   return (
     <motion.div
@@ -109,9 +112,60 @@ function OrderCard({ order, onNext, nextLabel, color, productImages }) {
         </div>
       )}
 
+      {/* خصم */}
+      {showDisc ? (
+        <div className="mx-3 mb-2 p-2.5 bg-purple-50 border border-purple-100 rounded-xl space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-purple-200 shrink-0">
+              {[["percent","%"],["fixed","ر.س"]].map(([v, l]) => (
+                <button key={v} type="button" onClick={() => setDiscType(v)}
+                  className={`px-2.5 py-1 text-xs font-bold transition-colors ${discType === v ? "bg-purple-600 text-white" : "bg-white text-purple-700"}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <input
+              type="number" min="0" max={discType === "percent" ? 100 : undefined}
+              value={discVal} onChange={e => setDiscVal(e.target.value)}
+              placeholder={discType === "percent" ? "10" : "5"}
+              className="flex-1 px-2.5 py-1.5 text-sm border border-purple-200 rounded-lg focus:outline-none focus:border-purple-400 min-w-0"
+              autoFocus
+            />
+            <button type="button" onClick={() => { setShowDisc(false); setDiscVal(""); }}
+              className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+              <X className="w-3.5 h-3.5 text-gray-500" />
+            </button>
+          </div>
+          <button type="button"
+            onClick={() => {
+              const val = parseFloat(discVal);
+              if (!val || val <= 0) return;
+              const originalTotal = order.original_total || order.total;
+              const discAmount = discType === "percent"
+                ? Math.min(originalTotal * val / 100, originalTotal)
+                : Math.min(val, originalTotal);
+              onDiscount({ id: order.id, discount_type: discType, discount_amount: val, original_total: originalTotal, total: Math.max(0, originalTotal - discAmount) });
+              setShowDisc(false); setDiscVal("");
+            }}
+            className="w-full py-1.5 rounded-lg bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-colors">
+            تطبيق الخصم
+          </button>
+        </div>
+      ) : (
+        <div className="mx-3 mb-1">
+          <button type="button" onClick={() => setShowDisc(true)}
+            className="flex items-center gap-1 text-[11px] text-purple-600 hover:text-purple-800 transition-colors font-semibold">
+            <Tag className="w-3 h-3" />
+            {order.original_total && order.original_total !== order.total
+              ? `خصم مطبّق (${order.original_total} ← ${order.total} ر.س)`
+              : "تطبيق خصم"}
+          </button>
+        </div>
+      )}
+
       {/* زر الإجراء */}
       {nextLabel && (
-        <div className="p-3 pt-2">
+        <div className="p-3 pt-1">
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={onNext}
@@ -168,6 +222,12 @@ export default function CashierDashboard() {
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }) => db.entities.Order.update(id, { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+  });
+
+  const applyDiscount = useMutation({
+    mutationFn: ({ id, discount_type, discount_amount, original_total, total }) =>
+      db.entities.Order.update(id, { discount_type, discount_amount, original_total, total }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
   });
 
@@ -396,6 +456,7 @@ export default function CashierDashboard() {
                               key={order.id} order={order} productImages={productImages}
                               nextLabel={col.nextLabel} color={col.color}
                               onNext={() => updateStatus.mutate({ id: order.id, status: col.next })}
+                              onDiscount={(data) => applyDiscount.mutate(data)}
                             />
                           ))
                         )}
@@ -446,6 +507,7 @@ export default function CashierDashboard() {
                         key={order.id} order={order} productImages={productImages}
                         nextLabel={COLS[activeCol].nextLabel} color={COLS[activeCol].color}
                         onNext={() => updateStatus.mutate({ id: order.id, status: COLS[activeCol].next })}
+                        onDiscount={(data) => applyDiscount.mutate(data)}
                       />
                     ))
                   )}

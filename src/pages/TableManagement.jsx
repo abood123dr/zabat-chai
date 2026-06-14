@@ -7,15 +7,12 @@ import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const STATUS_LABELS = { available: "متاحة", occupied: "مشغولة", maintenance: "صيانة" };
-const STATUS_COLORS = { available: "bg-green-100 text-green-700", occupied: "bg-red-100 text-red-700", maintenance: "bg-yellow-100 text-yellow-700" };
-const EMPTY_TABLE = { number: "", name: "", type: "table", status: "available", device_type: "", hourly_rate: 0, capacity: 4 };
+const EMPTY_TABLE = { number: "", name: "", type: "table", device_type: "", hourly_rate: 0, capacity: 4 };
 
 export default function TableManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,7 +41,7 @@ export default function TableManagement() {
   });
 
   const openAdd = () => { setForm(EMPTY_TABLE); setEditingId(null); setDialogOpen(true); };
-  const openEdit = (t) => { setForm({ number: t.number, name: t.name, type: t.type, status: t.status || "available", device_type: t.device_type || "", hourly_rate: t.hourly_rate || 0, capacity: t.capacity || 4 }); setEditingId(t.id); setDialogOpen(true); };
+  const openEdit = (t) => { setForm({ number: t.number, name: t.name, type: t.type, device_type: t.device_type || "", hourly_rate: t.hourly_rate || 0, capacity: t.capacity || 4 }); setEditingId(t.id); setDialogOpen(true); };
   const closeDialog = () => { setDialogOpen(false); setEditingId(null); };
 
   const getBaseUrl = () => {
@@ -170,7 +167,6 @@ export default function TableManagement() {
                   <p className="text-xs text-muted-foreground">رقم {t.number} • {t.type === "room" ? "غرفة سوني" : "طاولة"}</p>
                   {t.type === "room" && t.device_type && <p className="text-xs text-muted-foreground">{t.device_type} • {t.hourly_rate} ر.س/ساعة</p>}
                 </div>
-                <Badge className={`${STATUS_COLORS[t.status]} border-0 text-xs`}>{STATUS_LABELS[t.status]}</Badge>
               </div>
               <div className="flex gap-1">
                 <Button variant="outline" size="sm" className="rounded-lg gap-1 text-xs flex-1" onClick={() => setQrDialog(t)}>
@@ -215,19 +211,11 @@ export default function TableManagement() {
               <div><Label className="text-xs">الرقم *</Label><Input type="number" value={form.number} onChange={e => setForm(p => ({ ...p, number: e.target.value }))} required /></div>
               <div><Label className="text-xs">الاسم *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">النوع</Label>
-                <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="table">طاولة</SelectItem><SelectItem value="room">غرفة سوني</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div><Label className="text-xs">الحالة</Label>
-                <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="available">متاحة</SelectItem><SelectItem value="occupied">مشغولة</SelectItem><SelectItem value="maintenance">صيانة</SelectItem></SelectContent>
-                </Select>
-              </div>
+            <div><Label className="text-xs">النوع</Label>
+              <Select value={form.type} onValueChange={v => setForm(p => ({ ...p, type: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="table">طاولة</SelectItem><SelectItem value="room">غرفة سوني</SelectItem></SelectContent>
+              </Select>
             </div>
             {form.type === "room" && (
               <div className="grid grid-cols-2 gap-3">

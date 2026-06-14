@@ -151,6 +151,9 @@ alter table products   add column if not exists variants text; -- JSON: [{name,r
 alter table orders     add column if not exists order_number text;
 alter table orders     add column if not exists table_number integer;
 alter table orders     add column if not exists table_type text default 'table';
+alter table orders     add column if not exists discount_type text; -- 'percent' | 'fixed'
+alter table orders     add column if not exists discount_amount numeric default 0;
+alter table orders     add column if not exists original_total numeric;
 alter table businesses add column if not exists hero_image text;
 alter table businesses add column if not exists menu_tagline text;
 alter table businesses add column if not exists primary_color text default '32 85% 48%';

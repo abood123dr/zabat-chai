@@ -50,7 +50,7 @@ export default function TableManagement() {
   const getMenuUrl = (t) => {
     const base = window.location.origin;
     const param = t.type === "room" ? "room" : "table";
-    const bid = user?.business_id ? `&bid=${user.business_id}` : '';
+    const bid = (t.business_id || user?.business_id) ? `&bid=${t.business_id || user.business_id}` : '';
     return `${base}/menu?${param}=${t.number}&name=${encodeURIComponent(t.name)}${bid}`;
   };
 

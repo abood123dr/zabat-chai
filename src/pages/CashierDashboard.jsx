@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import db from "@/api/supabaseClient";
 
-import { Volume2, VolumeX, BellRing, Clock } from "lucide-react";
+import { Volume2, VolumeX, BellRing, Clock, Bell, X, CheckCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import RoomsPanel from "../components/cashier/RoomsPanel";
 
 function playAlert() {
@@ -95,8 +96,9 @@ function OrderCard({ order, onNext, nextLabel, productImages }) {
 
 export default function CashierDashboard() {
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [newAlert, setNewAlert] = useState(false);
-  const [mainTab, setMainTab] = useState("orders");
+  const [newAlert, setNewAlert]         = useState(false);
+  const [mainTab, setMainTab]           = useState("orders");
+  const [showNotifs, setShowNotifs]     = useState(false);
   const queryClient = useQueryClient();
 
   const { data: products = [] } = useQuery({
@@ -104,7 +106,6 @@ export default function CashierDashboard() {
     queryFn: () => db.entities.Product.list(),
   });
 
-  // Build a name→image map
   const productImages = {};
   products.forEach(p => { if (p.image) productImages[p.name] = p.image; });
 
@@ -112,6 +113,27 @@ export default function CashierDashboard() {
     queryKey: ["orders"],
     queryFn: () => db.entities.Order.list("-created_date", 200),
     refetchInterval: 8000,
+  });
+
+  // تنبيهات الخدمة (استدعاء موظف / طلب حساب)
+  const { data: serviceRequests = [] } = useQuery({
+    queryKey: ["service_requests"],
+    queryFn: () => db.entities.ServiceRequest.filter({ status: "pending" }, "-created_date"),
+    refetchInterval: 10000,
+  });
+
+  const markDone = useMutation({
+    mutationFn: (id) => db.entities.ServiceRequest.update(id, { status: "done" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["service_requests"] }),
+  });
+
+  const markAllDone = useMutation({
+    mutationFn: async () => {
+      for (const r of serviceRequests) {
+        await db.entities.ServiceRequest.update(r.id, { status: "done" });
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["service_requests"] }),
   });
 
   useEffect(() => {
@@ -128,12 +150,24 @@ export default function CashierDashboard() {
     return unsub;
   }, [queryClient, soundEnabled]);
 
+  // الاستماع لتنبيهات الخدمة
+  useEffect(() => {
+    const unsub = db.entities.ServiceRequest.subscribe((event) => {
+      if (event.eventType === "INSERT") {
+        if (soundEnabled) playAlert();
+        queryClient.invalidateQueries({ queryKey: ["service_requests"] });
+      }
+    });
+    return unsub;
+  }, [queryClient, soundEnabled]);
+
   const updateStatus = useMutation({
     mutationFn: ({ id, status }) => db.entities.Order.update(id, { status }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
   });
 
-  const activeOrders = orders.filter(o => o.status !== "delivered");
+  const activeOrders  = orders.filter(o => o.status !== "delivered");
+  const pendingNotifs = serviceRequests.length;
 
   return (
     <div dir="rtl">
@@ -147,14 +181,74 @@ export default function CashierDashboard() {
             </div>
           )}
         </div>
-        <button
-          onClick={() => setSoundEnabled(v => !v)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${soundEnabled ? "bg-primary/5 border-primary/30 text-primary" : "bg-gray-50 border-gray-200 text-gray-400"}`}
-        >
-          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          {soundEnabled ? "الصوت شغّال" : "الصوت مطفأ"}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* زر التنبيهات */}
+          <button
+            onClick={() => setShowNotifs(v => !v)}
+            className="relative flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+          >
+            <Bell className="w-4 h-4" />
+            التنبيهات
+            {pendingNotifs > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-bounce">
+                {pendingNotifs}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setSoundEnabled(v => !v)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${soundEnabled ? "bg-primary/5 border-primary/30 text-primary" : "bg-gray-50 border-gray-200 text-gray-400"}`}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            {soundEnabled ? "الصوت شغّال" : "الصوت مطفأ"}
+          </button>
+        </div>
       </div>
+
+      {/* لوحة التنبيهات */}
+      {showNotifs && (
+        <div className="mb-5 bg-white border border-amber-200 rounded-2xl shadow-lg overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border-b border-amber-200">
+            <p className="font-bold text-amber-800 flex items-center gap-2">
+              <Bell className="w-4 h-4" /> تنبيهات الخدمة
+              {pendingNotifs > 0 && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{pendingNotifs}</span>}
+            </p>
+            <div className="flex gap-2">
+              {pendingNotifs > 0 && (
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-green-300 text-green-700 hover:bg-green-50"
+                  onClick={() => markAllDone.mutate()} disabled={markAllDone.isPending}>
+                  <CheckCheck className="w-3.5 h-3.5" /> تأكيد الكل
+                </Button>
+              )}
+              <button onClick={() => setShowNotifs(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          {serviceRequests.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">لا توجد تنبيهات معلقة</div>
+          ) : (
+            <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+              {serviceRequests.map(r => (
+                <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="text-xl shrink-0">{r.type === "call_waiter" ? "🔔" : "🧾"}</div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">
+                      {r.type === "call_waiter" ? "استدعاء موظف" : "طلب الحساب"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{r.table_name}</p>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs text-green-700 hover:bg-green-50"
+                    onClick={() => markDone.mutate(r.id)}>
+                    ✓ تم
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
 
       {/* Main Tabs */}
       <div className="flex rounded-2xl border border-border overflow-hidden mb-6 w-fit">

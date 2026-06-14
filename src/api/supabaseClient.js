@@ -9,7 +9,7 @@ let currentBusinessId = null
 
 const TENANT_TABLES = new Set([
   'categories', 'products', 'dining_tables',
-  'orders', 'room_sessions',
+  'orders', 'room_sessions', 'service_requests',
 ])
 
 export const setCurrentBusinessId = (id) => { currentBusinessId = id }
@@ -24,6 +24,7 @@ const TABLE_MAP = {
   Business: 'businesses',
   BusinessUser: 'business_users',
   UserInvitation: 'user_invitations',
+  ServiceRequest: 'service_requests',
 }
 
 function createEntityAdapter(tableName) {

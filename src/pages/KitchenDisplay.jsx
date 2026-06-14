@@ -67,15 +67,25 @@ function KitchenOrderCard({ order, onAdvance, accentColor }) {
       </div>
 
       {/* المنتجات */}
-      <div className="space-y-2 flex-1">
-        {items.map((item, i) => (
-          <div key={i} className="flex items-center justify-between">
-            <span className="text-white font-bold text-lg leading-tight">{item.name}</span>
-            <span className="text-white font-black text-2xl bg-white/10 w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
-              {item.quantity}
-            </span>
-          </div>
-        ))}
+      <div className="space-y-2.5 flex-1">
+        {items.map((item, i) => {
+          const variantParts = item.variants
+            ? Object.entries(item.variants).flatMap(([, v]) => Array.isArray(v) ? v : v ? [v] : [])
+            : [];
+          return (
+            <div key={i} className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <span className="text-white font-bold text-lg leading-tight block">{item.name}</span>
+                {variantParts.length > 0 && (
+                  <span className="text-gray-400 text-sm">{variantParts.join(' · ')}</span>
+                )}
+              </div>
+              <span className="text-white font-black text-2xl bg-white/10 w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+                {item.quantity}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* ملاحظات */}

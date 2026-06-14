@@ -262,6 +262,89 @@ function CategoriesTab({ activeBid }) {
 }
 
 // ============================================================
+// منشئ الخيارات والإضافات
+// ============================================================
+function VariantBuilder({ value, onChange }) {
+  const groups = useMemo(() => {
+    try { return JSON.parse(value || '[]'); } catch { return []; }
+  }, [value]);
+
+  const emit = (g) => onChange(JSON.stringify(g));
+  const addGroup = () => emit([...groups, { name: '', required: true, multiSelect: false, options: [{ name: '', price: 0 }] }]);
+  const removeGroup = (gi) => emit(groups.filter((_, i) => i !== gi));
+  const upGroup = (gi, k, v) => emit(groups.map((g, i) => i === gi ? { ...g, [k]: v } : g));
+  const addOption = (gi) => emit(groups.map((g, i) => i === gi ? { ...g, options: [...g.options, { name: '', price: 0 }] } : g));
+  const removeOption = (gi, oi) => emit(groups.map((g, i) => i === gi ? { ...g, options: g.options.filter((_, j) => j !== oi) } : g));
+  const upOpt = (gi, oi, k, v) => emit(groups.map((g, i) => i === gi ? { ...g, options: g.options.map((o, j) => j === oi ? { ...o, [k]: v } : o) } : g));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">الخيارات والإضافات</Label>
+        <button type="button" onClick={addGroup}
+          className="text-xs font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
+          <Plus className="w-3 h-3" /> مجموعة جديدة
+        </button>
+      </div>
+      {groups.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-3 bg-muted/30 rounded-xl">
+          مثال: "الحجم" → صغير / وسط / كبير
+        </p>
+      ) : groups.map((group, gi) => (
+        <div key={gi} className="border border-border rounded-xl p-3 space-y-2.5 bg-muted/20">
+          <div className="flex items-center gap-2">
+            <Input value={group.name}
+              onChange={e => upGroup(gi, 'name', e.target.value)}
+              placeholder="اسم المجموعة (مثال: الحجم)" className="flex-1 h-8 text-sm" />
+            <button type="button" onClick={() => removeGroup(gi)}
+              className="w-7 h-7 rounded-lg bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center transition-colors shrink-0">
+              <X className="w-3.5 h-3.5 text-destructive" />
+            </button>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+              <input type="checkbox" checked={group.required}
+                onChange={e => upGroup(gi, 'required', e.target.checked)}
+                className="w-3.5 h-3.5 accent-primary rounded" />
+              مطلوب
+            </label>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+              <input type="checkbox" checked={group.multiSelect}
+                onChange={e => upGroup(gi, 'multiSelect', e.target.checked)}
+                className="w-3.5 h-3.5 accent-primary rounded" />
+              اختيار متعدد
+            </label>
+          </div>
+          <div className="space-y-1.5">
+            {group.options.map((opt, oi) => (
+              <div key={oi} className="flex items-center gap-1.5">
+                <Input value={opt.name}
+                  onChange={e => upOpt(gi, oi, 'name', e.target.value)}
+                  placeholder="الاسم (مثال: كبير)" className="flex-1 h-7 text-xs" />
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <span className="text-[10px] text-muted-foreground">+</span>
+                  <Input type="number" step="0.5" min="0" value={opt.price}
+                    onChange={e => upOpt(gi, oi, 'price', parseFloat(e.target.value) || 0)}
+                    className="w-14 h-7 text-xs text-center px-1" />
+                </div>
+                <button type="button" onClick={() => removeOption(gi, oi)}
+                  className="w-6 h-6 rounded-md hover:bg-muted flex items-center justify-center shrink-0">
+                  <X className="w-3 h-3 text-muted-foreground" />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => addOption(gi)}
+              className="text-xs text-primary/70 hover:text-primary flex items-center gap-1 px-1 transition-colors">
+              <Plus className="w-3 h-3" /> خيار
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
 // منتجات
 // ============================================================
 function ProductsTab({ activeBid }) {
@@ -272,7 +355,7 @@ function ProductsTab({ activeBid }) {
   const [error, setError]     = useState("");
   const [search, setSearch]   = useState("");
   const [filterCat, setFilterCat] = useState("all");
-  const [form, setForm] = useState({ name:"", price:"", category:"", image:"", is_available:true, is_featured:false, description:"", is_offer:false, offer_price:"" });
+  const [form, setForm] = useState({ name:"", price:"", category:"", image:"", is_available:true, is_featured:false, description:"", is_offer:false, offer_price:"", variants:"" });
   const qc = useQueryClient();
 
   const { data: products = [], isLoading } = useQuery({
@@ -331,7 +414,7 @@ function ProductsTab({ activeBid }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products-all"] });
       setOpen(false); setEditId(null); setShowMore(false); setError("");
-      setForm({ name:"", price:"", category:"", image:"", is_available:true, is_featured:false, description:"", is_offer:false, offer_price:"" });
+      setForm({ name:"", price:"", category:"", image:"", is_available:true, is_featured:false, description:"", is_offer:false, offer_price:"", variants:"" });
     },
   });
 
@@ -347,8 +430,8 @@ function ProductsTab({ activeBid }) {
     onSettled: () => { qc.invalidateQueries({ queryKey: ["products-all"] }); setDeleteId(null); },
   });
 
-  const openAdd  = () => { setForm({ name:"", price:"", category:"", image:"", is_available:true, is_featured:false, description:"", is_offer:false, offer_price:"" }); setEditId(null); setShowMore(false); setError(""); setOpen(true); };
-  const openEdit = (p) => { setForm({ name:p.name, price:p.price, category:p.category||"", image:p.image||"", is_available:p.is_available!==false, is_featured:!!p.is_featured, description:p.description||"", is_offer:!!p.is_offer, offer_price:p.offer_price||"" }); setEditId(p.id); setShowMore(false); setError(""); setOpen(true); };
+  const openAdd  = () => { setForm({ name:"", price:"", category:"", image:"", is_available:true, is_featured:false, description:"", is_offer:false, offer_price:"", variants:"" }); setEditId(null); setShowMore(false); setError(""); setOpen(true); };
+  const openEdit = (p) => { setForm({ name:p.name, price:p.price, category:p.category||"", image:p.image||"", is_available:p.is_available!==false, is_featured:!!p.is_featured, description:p.description||"", is_offer:!!p.is_offer, offer_price:p.offer_price||"", variants:p.variants||"" }); setEditId(p.id); setShowMore(false); setError(""); setOpen(true); };
   const submit   = (e) => { e.preventDefault(); setError(""); save.mutate({ ...form, price: parseFloat(form.price)||0, offer_price: parseFloat(form.offer_price)||0 }); };
 
   if (!activeBid) return (
@@ -528,6 +611,9 @@ function ProductsTab({ activeBid }) {
                     <Input type="number" step="0.5" min="0" value={form.offer_price} onChange={e => setForm(p => ({...p, offer_price: e.target.value}))} placeholder="0.00" />
                   </div>
                 )}
+                <div className="border-t border-border/60 pt-3">
+                  <VariantBuilder value={form.variants} onChange={v => setForm(p => ({...p, variants: v}))} />
+                </div>
               </div>
             )}
             <Button type="submit" className="w-full rounded-xl h-11 text-base" disabled={save.isPending}>

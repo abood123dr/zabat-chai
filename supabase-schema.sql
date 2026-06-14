@@ -147,7 +147,33 @@ create index if not exists idx_service_requests_status  on service_requests(stat
 alter table categories add column if not exists icon text default '☕';
 alter table categories add column if not exists image_url text;
 alter table products   add column if not exists offer_price numeric default 0;
+alter table products   add column if not exists variants text; -- JSON: [{name,required,multiSelect,options:[{name,price}]}]
 alter table orders     add column if not exists order_number text;
+alter table orders     add column if not exists table_number integer;
+alter table orders     add column if not exists table_type text default 'table';
+alter table businesses add column if not exists hero_image text;
+alter table businesses add column if not exists menu_tagline text;
+alter table businesses add column if not exists primary_color text default '32 85% 48%';
+alter table businesses add column if not exists instagram_url text;
+alter table businesses add column if not exists twitter_url text;
+alter table businesses add column if not exists snapchat_url text;
+alter table businesses add column if not exists tiktok_url text;
+alter table businesses add column if not exists whatsapp text;
+
+-- جدول طلبات الخدمة (استدعاء موظف، طلب حساب)
+create table if not exists service_requests (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid references businesses(id) on delete cascade,
+  table_number integer,
+  table_name text,
+  table_type text default 'table',
+  type text not null, -- 'call_waiter' | 'request_bill'
+  status text default 'pending',
+  created_date timestamptz default now()
+);
+alter table service_requests enable row level security;
+create policy "allow_all" on service_requests for all using (true) with check (true);
+alter publication supabase_realtime add table service_requests;
 
 -- ===== أعمدة العملات =====
 alter table businesses add column if not exists currency_code     text    default 'SAR';

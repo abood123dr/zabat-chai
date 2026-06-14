@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useBusiness } from "@/lib/BusinessContext";
 import {
   TrendingUp, TrendingDown, ShoppingCart, DollarSign,
-  Clock, Package, ArrowLeft, RefreshCw, BarChart3, Activity
+  Clock, Package, ArrowLeft, RefreshCw, BarChart3, Activity, Printer
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,11 +70,153 @@ function OrderStatusBadge({ status }) {
   return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>;
 }
 
+// ===== تقرير اليوم =====
+function DailyReportModal({ open, onClose, stats, orders }) {
+  if (!open) return null;
+  const todayOrders = stats.todayOrders;
+  const statusBreakdown = [
+    { label: "جديد",      key: "received",  color: "#3b82f6" },
+    { label: "قيد التحضير", key: "preparing", color: "#f59e0b" },
+    { label: "جاهز",      key: "ready",     color: "#22c55e" },
+    { label: "مسلّم",     key: "delivered", color: "#6b7280" },
+  ].map(s => ({ ...s, count: todayOrders.filter(o => o.status === s.key).length }));
+
+  const todayProductMap = {};
+  todayOrders.forEach(o => {
+    try {
+      JSON.parse(o.items).forEach(item => {
+        if (!todayProductMap[item.name]) todayProductMap[item.name] = { name: item.name, qty: 0, rev: 0 };
+        todayProductMap[item.name].qty += item.quantity;
+        todayProductMap[item.name].rev += (item.price || 0) * item.quantity;
+      });
+    } catch {}
+  });
+  const topToday = Object.values(todayProductMap).sort((a, b) => b.qty - a.qty).slice(0, 10);
+
+  const printReport = () => {
+    const html = `<!DOCTYPE html><html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"/><title>تقرير اليوم</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0} body{font-family:'Segoe UI',Arial,sans-serif;color:#111;padding:24px;font-size:13px}
+  h1{font-size:20px;font-weight:900;margin-bottom:4px} .sub{color:#666;font-size:12px;margin-bottom:20px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+  .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;text-align:center}
+  .num{font-size:26px;font-weight:900;color:#e8820c} .lbl{font-size:11px;color:#666;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px}
+  th{background:#f9fafb;padding:8px 10px;text-align:right;font-size:11px;color:#666;border-bottom:1px solid #e5e7eb}
+  td{padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}
+  h2{font-size:13px;font-weight:700;margin-bottom:8px;color:#374151;border-right:3px solid #e8820c;padding-right:8px}
+  @media print{body{padding:12px}}
+</style></head><body>
+<h1>تقرير يوم ${moment().format("dddd، D MMMM YYYY")}</h1>
+<p class="sub">تم الإنشاء: ${moment().format("HH:mm")}</p>
+<div class="grid">
+  <div class="card"><div class="num">${todayOrders.length}</div><div class="lbl">إجمالي الطلبات</div></div>
+  <div class="card"><div class="num">${stats.todayRev.toFixed(0)} ر.س</div><div class="lbl">الإيرادات</div></div>
+  <div class="card"><div class="num">${stats.avgOrder.toFixed(0)} ر.س</div><div class="lbl">متوسط الطلب</div></div>
+</div>
+<h2>الطلبات حسب الحالة</h2>
+<table><thead><tr><th>الحالة</th><th>العدد</th><th>النسبة</th></tr></thead><tbody>
+${statusBreakdown.map(s => `<tr><td>${s.label}</td><td>${s.count}</td><td>${todayOrders.length ? Math.round(s.count/todayOrders.length*100) : 0}%</td></tr>`).join("")}
+</tbody></table>
+<h2>أفضل المنتجات اليوم</h2>
+<table><thead><tr><th>#</th><th>المنتج</th><th>الكمية</th><th>الإيرادات</th></tr></thead><tbody>
+${topToday.map((p, i) => `<tr><td>${i+1}</td><td>${p.name}</td><td>${p.qty}</td><td>${p.rev.toFixed(0)} ر.س</td></tr>`).join("")}
+</tbody></table>
+<script>window.onload=()=>setTimeout(()=>window.print(),500)<\/script>
+</body></html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-auto">
+        <div className="sticky top-0 bg-white border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h2 className="font-heading font-bold text-base">تقرير اليوم</h2>
+            <p className="text-xs text-muted-foreground">{moment().format("dddd، D MMMM YYYY")}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="rounded-xl gap-2 text-xs h-8" onClick={printReport}>
+              <Printer className="w-3.5 h-3.5" /> طباعة
+            </Button>
+            <button onClick={onClose} className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* ملخص الأرقام */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "الطلبات", value: todayOrders.length, icon: "🧾" },
+              { label: "الإيرادات", value: `${stats.todayRev.toFixed(0)} ر.س`, icon: "💰" },
+              { label: "متوسط الطلب", value: `${stats.avgOrder.toFixed(0)} ر.س`, icon: "📊" },
+            ].map(c => (
+              <div key={c.label} className="bg-muted/40 rounded-xl p-3 text-center">
+                <p className="text-xl mb-0.5">{c.icon}</p>
+                <p className="font-black text-lg text-primary">{c.value}</p>
+                <p className="text-[10px] text-muted-foreground">{c.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* توزيع الحالات */}
+          <div>
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">الطلبات حسب الحالة</h3>
+            <div className="space-y-2">
+              {statusBreakdown.map(s => (
+                <div key={s.key} className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground w-20 shrink-0">{s.label}</span>
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all"
+                      style={{ width: `${todayOrders.length ? s.count / todayOrders.length * 100 : 0}%`, backgroundColor: s.color }} />
+                  </div>
+                  <span className="text-xs font-bold w-6 text-left">{s.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* أفضل المنتجات */}
+          {topToday.length > 0 && (
+            <div>
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">أفضل المنتجات اليوم</h3>
+              <div className="space-y-2">
+                {topToday.map((p, i) => (
+                  <div key={p.name} className="flex items-center gap-2">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${i === 0 ? "bg-yellow-400 text-white" : i === 1 ? "bg-gray-300 text-gray-700" : "bg-muted text-muted-foreground"}`}>{i + 1}</span>
+                    <span className="flex-1 text-sm truncate">{p.name}</span>
+                    <span className="text-xs text-muted-foreground">{p.qty}×</span>
+                    <span className="text-xs font-bold text-primary">{p.rev.toFixed(0)} ر.س</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {todayOrders.length === 0 && (
+            <div className="text-center py-10 text-muted-foreground">
+              <p className="text-3xl mb-2">📋</p>
+              <p className="text-sm">لا توجد طلبات اليوم حتى الآن</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ===== الصفحة الرئيسية =====
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { activeBid, isSuperAdmin } = useBusiness();
   const [refetchKey, setRefetchKey] = useState(0);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const { data: orders = [], isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["orders", activeBid, refetchKey],
@@ -175,6 +317,10 @@ export default function AdminDashboard() {
         </div>
         <div className="flex items-center gap-3">
           <LiveClock />
+          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs hidden sm:flex"
+            onClick={() => setReportOpen(true)}>
+            <Printer className="w-3.5 h-3.5" /> تقرير اليوم
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setRefetchKey(k => k + 1)} className="text-muted-foreground">
             <RefreshCw className="w-4 h-4" />
           </Button>
@@ -389,6 +535,14 @@ export default function AdminDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* زر تقرير موبايل */}
+      <Button variant="outline" className="w-full rounded-xl gap-2 sm:hidden"
+        onClick={() => setReportOpen(true)}>
+        <Printer className="w-4 h-4" /> تقرير اليوم
+      </Button>
+
+      <DailyReportModal open={reportOpen} onClose={() => setReportOpen(false)} stats={stats} orders={orders} />
     </div>
   );
 }

@@ -193,13 +193,37 @@ function ProductCard({ product, onTap, currency, color, index = 0, formatPrice =
 function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = String }) {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+
+  // خيارات المنتج
+  const variantGroups = useMemo(() => {
+    try { return JSON.parse(product?.variants || '[]'); } catch { return []; }
+  }, [product?.variants]);
+  const [selections, setSelections] = useState({});
+
+  const variantTotal = useMemo(() => variantGroups.reduce((sum, group, gi) => {
+    const sel = selections[gi];
+    if (sel === undefined || sel === null) return sum;
+    const indices = Array.isArray(sel) ? sel : [sel];
+    return sum + indices.reduce((s, oi) => s + (group.options[oi]?.price || 0), 0);
+  }, 0), [selections, variantGroups]);
+
+  const canAdd = product?.is_available && variantGroups.every((g, gi) => !g.required || selections[gi] !== undefined);
+
   const hasOffer = product?.is_offer && product?.offer_price;
-  const price    = hasOffer ? product?.offer_price : product?.price;
-  const discount = hasOffer ? Math.round((1 - product.offer_price / product.price) * 100) : 0;
+  const basePrice = hasOffer ? product?.offer_price : product?.price;
+  const discount  = hasOffer ? Math.round((1 - product.offer_price / product.price) * 100) : 0;
 
   const handleAdd = () => {
-    if (!product.is_available) return;
-    for (let i = 0; i < qty; i++) onAdd(product);
+    if (!canAdd) return;
+    const variantMap = {};
+    variantGroups.forEach((g, gi) => {
+      const sel = selections[gi];
+      if (sel === undefined) return;
+      const indices = Array.isArray(sel) ? sel : [sel];
+      const names = indices.map(oi => g.options[oi]?.name).filter(Boolean);
+      variantMap[g.name] = g.multiSelect ? names : (names[0] || "");
+    });
+    onAdd(product, variantMap, variantTotal, qty);
     setAdded(true);
     setTimeout(() => { setAdded(false); onClose(); }, 900);
   };
@@ -255,13 +279,56 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
           )}
 
           {/* السعر */}
-          <div className="flex items-center gap-3 mb-5">
-            <span className="font-black text-3xl" style={{ color }}>{formatPrice(price)}</span>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="font-black text-3xl" style={{ color }}>{formatPrice(basePrice + variantTotal)}</span>
             <span className="text-gray-500 text-sm font-medium">{currency}</span>
             {hasOffer && (
               <span className="text-gray-400 text-base line-through mr-auto">{formatPrice(product?.price)} {currency}</span>
             )}
           </div>
+
+          {/* خيارات المنتج */}
+          {variantGroups.length > 0 && (
+            <div className="space-y-4 mb-5">
+              {variantGroups.map((group, gi) => (
+                <div key={gi}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <p className="font-bold text-sm text-gray-800">{group.name}</p>
+                    {group.required && <span className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full font-bold">مطلوب</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {group.options.map((opt, oi) => {
+                      const isSelected = group.multiSelect
+                        ? Array.isArray(selections[gi]) && selections[gi].includes(oi)
+                        : selections[gi] === oi;
+                      return (
+                        <motion.button key={oi} type="button" whileTap={{ scale: 0.93 }}
+                          onClick={() => {
+                            if (group.multiSelect) {
+                              setSelections(prev => {
+                                const cur = Array.isArray(prev[gi]) ? prev[gi] : [];
+                                const next = isSelected ? cur.filter(i => i !== oi) : [...cur, oi];
+                                return { ...prev, [gi]: next.length ? next : undefined };
+                              });
+                            } else {
+                              setSelections(prev => ({ ...prev, [gi]: oi }));
+                            }
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl text-sm font-semibold border-2 transition-all"
+                          style={isSelected
+                            ? { backgroundColor: color, borderColor: color, color: "white" }
+                            : { borderColor: "#e5e7eb", color: "#4b5563" }
+                          }
+                        >
+                          {opt.name}{opt.price > 0 ? ` +${formatPrice(opt.price)}` : ""}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* غير متوفر */}
           {!product?.is_available && (
@@ -289,7 +356,10 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
 
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleAdd}
                 className="flex-1 py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 transition-colors"
-                style={{ backgroundColor: added ? "#22c55e" : color, boxShadow: `0 4px 20px ${added ? "#22c55e" : color}55` }}>
+                style={{
+                  backgroundColor: added ? "#22c55e" : canAdd ? color : "#9ca3af",
+                  boxShadow: `0 4px 20px ${added ? "#22c55e" : canAdd ? color : "#9ca3af"}55`,
+                }}>
                 <AnimatePresence mode="wait" initial={false}>
                   {added ? (
                     <motion.span key="done" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="flex items-center gap-2">
@@ -298,7 +368,9 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
                   ) : (
                     <motion.span key="add" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="flex items-center gap-2">
                       <ShoppingCart className="w-5 h-5" />
-                      أضف للسلة · {formatPrice(price * qty)} {currency}
+                      {canAdd || variantGroups.length === 0
+                        ? `أضف للسلة · ${formatPrice((basePrice + variantTotal) * qty)} ${currency}`
+                        : "اختر الخيارات أولاً"}
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -404,6 +476,18 @@ export default function CustomerMenu() {
 
   const currency = useAltCurrency ? altSymbol : mainSymbol;
 
+  // ساعات العمل
+  const isOpen = useMemo(() => {
+    if (!biz?.opening_time || !biz?.closing_time) return true;
+    const toMins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const openMins = toMins(biz.opening_time);
+    const closeMins = toMins(biz.closing_time);
+    if (closeMins < openMins) return nowMins >= openMins || nowMins < closeMins;
+    return nowMins >= openMins && nowMins < closeMins;
+  }, [biz?.opening_time, biz?.closing_time]);
+
   // دالة تحويل السعر للعرض
   const fmtPrice = (raw) => {
     if (!raw && raw !== 0) return "0";
@@ -465,16 +549,19 @@ export default function CustomerMenu() {
     return [];
   }, [products, search, selectedCat, offers, featured]);
 
-  const addToCart = (product) => setCart(prev => {
-    const ex = prev.find(i => i.product.id === product.id);
-    if (ex) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-    return [...prev, { product, quantity: 1 }];
-  });
+  const addToCart = (product, variants = {}, variantPrice = 0, qty = 1) => {
+    const cartKey = `${product.id}__${JSON.stringify(variants)}`;
+    setCart(prev => {
+      const ex = prev.find(i => i.cartKey === cartKey);
+      if (ex) return prev.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity + qty } : i);
+      return [...prev, { cartKey, product, quantity: qty, variants, variantPrice }];
+    });
+  };
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cart.reduce((s, i) => {
     const p = i.product.is_offer && i.product.offer_price ? i.product.offer_price : i.product.price;
-    return s + p * i.quantity;
+    return s + (p + (i.variantPrice || 0)) * i.quantity;
   }, 0);
 
   const sendNotif = useMutation({
@@ -631,6 +718,15 @@ export default function CustomerMenu() {
 
       {/* ============ MENU ============ */}
       <section ref={menuRef}>
+
+        {/* شريط المغلق */}
+        {!isOpen && (
+          <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-center gap-2 text-sm font-bold">
+            <Clock className="w-4 h-4 text-amber-400" />
+            المحل مغلق حالياً
+            {biz?.opening_time && <span className="text-gray-400">· يفتح {biz.opening_time}</span>}
+          </div>
+        )}
 
         {/* شريط ثابت */}
         <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-2xl border-b border-gray-100/80"
@@ -879,7 +975,8 @@ export default function CustomerMenu() {
 
       <CartSheet open={cartOpen} onOpenChange={setCartOpen}
         cart={cart} setCart={setCart}
-        tableNumber={tableNumber} tableType={tableType} tableName={tableName} />
+        tableNumber={tableNumber} tableType={tableType} tableName={tableName}
+        currency={currency} formatPrice={fmtPrice} />
 
       {/* ===== زر تبديل العملة — سوريا فقط ===== */}
       <AnimatePresence>

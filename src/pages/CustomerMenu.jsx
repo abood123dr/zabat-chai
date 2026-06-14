@@ -1,25 +1,72 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import db, { setCurrentBusinessId, supabase } from "@/api/supabaseClient";
-import { Search, ShoppingCart, Bell, Receipt, ChevronDown, MapPin, Clock, Phone, Plus, X, Check, Star, ChevronRight, Minus, ArrowLeftRight } from "lucide-react";
+import {
+  Search, ShoppingCart, Bell, Receipt, ChevronDown, MapPin, Clock,
+  Phone, Plus, X, Check, Star, ChevronRight, Minus, ArrowLeftRight,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CartSheet from "../components/customer/CartSheet";
 
+// ============================================================
+// صوتيات + اهتزاز
+// ============================================================
+const snd = {
+  add: () => {
+    try {
+      const A = window.AudioContext || window.webkitAudioContext;
+      if (!A) return;
+      const ctx = new A();
+      [[587, 0], [880, 0.07]].forEach(([f, d]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = f; o.type = "sine";
+        const t = ctx.currentTime + d;
+        g.gain.setValueAtTime(0.28, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+        o.start(t); o.stop(t + 0.11);
+      });
+    } catch {}
+  },
+  ping: () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[880, 0], [1100, 0.09], [880, 0.18]].forEach(([f, d]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = f; o.type = "sine";
+        const t = ctx.currentTime + d;
+        g.gain.setValueAtTime(0.2, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+        o.start(t); o.stop(t + 0.09);
+      });
+    } catch {}
+  },
+};
+const haptic = (p = [10]) => { try { navigator.vibrate?.(p); } catch {} };
+
+// ============================================================
+// Defaults
+// ============================================================
 const DEFAULT_HERO    = "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=1400&q=90";
 const DEFAULT_PRODUCT = "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80";
 
 const HEX_MAP = {
-  "32 85% 48%":  "#e8820c","217 91% 60%":"#3b82f6",
-  "142 76% 36%": "#16a34a","271 91% 65%":"#a855f7",
-  "330 81% 60%": "#ec4899","0 84% 60%":  "#ef4444",
-  "173 80% 40%": "#0d9488","45 93% 47%": "#eab308",
+  "32 85% 48%":  "#e8820c", "217 91% 60%": "#3b82f6",
+  "142 76% 36%": "#16a34a", "271 91% 65%": "#a855f7",
+  "330 81% 60%": "#ec4899", "0 84% 60%":   "#ef4444",
+  "173 80% 40%": "#0d9488", "45 93% 47%":  "#eab308",
 };
+
 const CAT_GRADIENTS = [
   ["#f97316","#ef4444"],["#3b82f6","#8b5cf6"],["#10b981","#06b6d4"],
   ["#f59e0b","#f97316"],["#ec4899","#a855f7"],["#0d9488","#3b82f6"],
   ["#84cc16","#10b981"],["#f43f5e","#ec4899"],["#6366f1","#8b5cf6"],
 ];
 
+// ============================================================
+// Social icons
+// ============================================================
 const IGIcon   = () => <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>;
 const XIcon    = () => <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>;
 const SnapIcon = () => <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M12.017 0C8.396 0 8.025.015 6.79.074c-1.237.057-2.08.254-2.82.543A5.69 5.69 0 0 0 1.914 1.91 5.703 5.703 0 0 0 .617 3.97C.328 4.71.131 5.553.074 6.79.015 8.025 0 8.396 0 12.017c0 3.62.015 3.99.074 5.226.057 1.236.254 2.08.543 2.82a5.69 5.69 0 0 0 1.293 2.056 5.703 5.703 0 0 0 2.057 1.297c.74.289 1.583.486 2.82.543 1.235.059 1.606.074 5.226.074 3.62 0 3.99-.015 5.227-.074 1.236-.057 2.08-.254 2.82-.543a5.703 5.703 0 0 0 2.056-1.297 5.69 5.69 0 0 0 1.297-2.057c.289-.74.486-1.583.543-2.82.059-1.235.074-1.606.074-5.226 0-3.621-.015-3.991-.074-5.227-.057-1.236-.254-2.08-.543-2.82A5.69 5.69 0 0 0 22.09 1.91 5.703 5.703 0 0 0 20.034.617C19.293.328 18.45.131 17.213.074 15.978.015 15.607 0 11.987 0h.03z"/></svg>;
@@ -37,38 +84,76 @@ function SocialBtn({ url, icon: Icon, label, cls }) {
   );
 }
 
-// =============================================
-// بطاقة قسم كبيرة - Premium
-// =============================================
-function BigCategoryCard({ cat, index, color, productCount, onClick }) {
+// ============================================================
+// Tabs أفقية للأقسام
+// ============================================================
+function CategoryTabs({ tabs, activeId, onSelect, color }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current?.querySelector(`[data-tabid="${activeId}"]`);
+    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [activeId]);
+
+  return (
+    <div ref={ref} className="flex gap-2 overflow-x-auto px-4 pb-3 pt-1"
+      style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+      {tabs.map(t => {
+        const active = t.id === activeId;
+        return (
+          <motion.button
+            key={t.id}
+            data-tabid={t.id}
+            whileTap={{ scale: 0.90 }}
+            onClick={() => onSelect(t.id)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-black whitespace-nowrap shrink-0 transition-colors"
+            style={active
+              ? { backgroundColor: color, color: "#fff", boxShadow: `0 4px 14px ${color}50` }
+              : { backgroundColor: "#f3f4f6", color: "#6b7280" }
+            }
+          >
+            {t.emoji && <span className="text-[15px] leading-none">{t.emoji}</span>}
+            {t.label}
+            {t.count > 0 && (
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                active ? "bg-white/25 text-white" : "bg-gray-200/70 text-gray-500"
+              }`}>{t.count}</span>
+            )}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// بطاقة قسم كبيرة
+// ============================================================
+function BigCategoryCard({ cat, index, productCount, onClick }) {
   const [c1, c2] = CAT_GRADIENTS[index % CAT_GRADIENTS.length];
   return (
-    <motion.button
-      onClick={onClick}
-      initial={{ opacity: 0, y: 40, scale: 0.9 }}
+    <motion.button onClick={onClick}
+      initial={{ opacity: 0, y: 40, scale: 0.88 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: index * 0.08, type: "spring", stiffness: 240, damping: 22 }}
-      whileTap={{ scale: 0.93 }}
+      transition={{ delay: index * 0.07, type: "spring", stiffness: 240, damping: 22 }}
+      whileTap={{ scale: 0.92 }}
       className="relative rounded-3xl overflow-hidden aspect-square w-full group"
       style={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
     >
       {cat.image_url ? (
         <img src={cat.image_url} alt={cat.name}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-active:scale-105"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-active:scale-110"
           loading="lazy" />
       ) : (
-        <div className="absolute inset-0 transition-transform duration-700 group-active:scale-105"
+        <div className="absolute inset-0 transition-transform duration-700 group-active:scale-110"
           style={{ background: `linear-gradient(145deg, ${c1}, ${c2})` }}>
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-7xl drop-shadow-lg opacity-90">{cat.icon || "🍽️"}</span>
           </div>
         </div>
       )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/5" />
 
-      {/* تدرج تعتيم */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
-
-      {/* عدد المنتجات - badge علوي */}
       {productCount > 0 && (
         <div className="absolute top-3 right-3">
           <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
@@ -77,36 +162,30 @@ function BigCategoryCard({ cat, index, color, productCount, onClick }) {
         </div>
       )}
 
-      {/* سهم */}
-      <div className="absolute top-3 left-3 w-7 h-7 bg-white/15 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/20">
-        <ChevronRight className="w-3.5 h-3.5 text-white rotate-180" />
-      </div>
-
-      {/* اسم القسم - أسفل */}
       <div className="absolute bottom-0 inset-x-0 p-4">
-        <p className="text-white font-black text-[18px] leading-tight drop-shadow-md text-right">{cat.name}</p>
+        <p className="text-white font-black text-[17px] leading-tight drop-shadow-md text-right">{cat.name}</p>
       </div>
     </motion.button>
   );
 }
 
-// =============================================
-// بطاقة عروض وبطاقة مميزة
-// =============================================
+// ============================================================
+// بطاقة عروض / مميز
+// ============================================================
 function SpecialCard({ emoji, title, subtitle, gradient, onClick, index = 0 }) {
   return (
     <motion.button onClick={onClick}
-      initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, type: "spring", stiffness: 260, damping: 22 }}
-      whileTap={{ scale: 0.97 }}
-      className="relative w-full rounded-3xl overflow-hidden h-[100px]"
+      whileTap={{ scale: 0.96 }}
+      className="relative w-full rounded-3xl overflow-hidden h-[90px]"
       style={{ background: gradient, boxShadow: "0 6px 25px rgba(0,0,0,0.18)" }}>
-      <div className="absolute inset-0 opacity-[0.08]"
+      <div className="absolute inset-0 opacity-[0.07]"
         style={{ backgroundImage: "radial-gradient(circle at 80% 50%, white 0%, transparent 55%)" }} />
       <div className="relative h-full flex items-center justify-between px-5">
         <div className="text-right">
-          <p className="text-white font-black text-[18px] leading-tight">{title}</p>
-          <p className="text-white/75 text-[12px] mt-0.5">{subtitle}</p>
+          <p className="text-white font-black text-[17px] leading-tight">{title}</p>
+          <p className="text-white/70 text-[12px] mt-0.5">{subtitle}</p>
         </div>
         <span className="text-5xl opacity-85 ml-2">{emoji}</span>
       </div>
@@ -114,9 +193,9 @@ function SpecialCard({ emoji, title, subtitle, gradient, onClick, index = 0 }) {
   );
 }
 
-// =============================================
-// بطاقة منتج - احترافية
-// =============================================
+// ============================================================
+// بطاقة منتج
+// ============================================================
 function ProductCard({ product, onTap, currency, color, index = 0, formatPrice = String }) {
   const hasOffer = product.is_offer && product.offer_price;
   const price    = hasOffer ? product.offer_price : product.price;
@@ -124,22 +203,20 @@ function ProductCard({ product, onTap, currency, color, index = 0, formatPrice =
 
   return (
     <motion.div
-      onClick={() => onTap(product)}
-      initial={{ opacity: 0, y: 24, scale: 0.94 }}
+      onClick={() => product.is_available !== false && onTap(product)}
+      initial={{ opacity: 0, y: 20, scale: 0.93 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: index * 0.055, type: "spring", stiffness: 280, damping: 26 }}
-      whileTap={{ scale: 0.96 }}
+      transition={{ delay: index * 0.045, type: "spring", stiffness: 300, damping: 26 }}
+      whileTap={{ scale: product.is_available !== false ? 0.95 : 1 }}
       className="bg-white rounded-2xl overflow-hidden cursor-pointer group"
-      style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.08)" }}
+      style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.07)" }}
     >
-      {/* صورة المنتج */}
       <div className="relative aspect-square overflow-hidden bg-gray-100">
         <img src={product.image || DEFAULT_PRODUCT} alt={product.name} loading="lazy"
           className="w-full h-full object-cover transition-transform duration-500 group-active:scale-110"
           onError={e => { e.target.src = DEFAULT_PRODUCT; }} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
 
-        {/* باجات */}
         {hasOffer && (
           <div className="absolute top-2.5 right-2.5 bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-lg">
             -{discount}%
@@ -152,22 +229,18 @@ function ProductCard({ product, onTap, currency, color, index = 0, formatPrice =
           </div>
         )}
 
-        {/* زر + سريع */}
-        {product.is_available && (
+        {product.is_available !== false ? (
           <div className="absolute bottom-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center shadow-xl"
             style={{ backgroundColor: color }}>
             <Plus className="w-4 h-4 text-white" />
           </div>
-        )}
-
-        {!product.is_available && (
+        ) : (
           <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px] flex items-center justify-center">
             <span className="bg-white/95 text-gray-800 text-xs font-bold px-3 py-1.5 rounded-full shadow">غير متوفر</span>
           </div>
         )}
       </div>
 
-      {/* معلومات */}
       <div className="p-3">
         <p className="font-bold text-gray-900 text-sm leading-snug line-clamp-1">{product.name}</p>
         {product.description && (
@@ -187,17 +260,17 @@ function ProductCard({ product, onTap, currency, color, index = 0, formatPrice =
   );
 }
 
-// =============================================
-// مودال تفاصيل المنتج - Bottom Sheet
-// =============================================
+// ============================================================
+// مودال تفاصيل المنتج — Bottom Sheet
+// ============================================================
 function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = String }) {
-  const [qty, setQty] = useState(1);
-  const [added, setAdded] = useState(false);
+  const [qty, setQty]       = useState(1);
+  const [added, setAdded]   = useState(false);
 
-  // خيارات المنتج
   const variantGroups = useMemo(() => {
-    try { return JSON.parse(product?.variants || '[]'); } catch { return []; }
+    try { return JSON.parse(product?.variants || "[]"); } catch { return []; }
   }, [product?.variants]);
+
   const [selections, setSelections] = useState({});
 
   const variantTotal = useMemo(() => variantGroups.reduce((sum, group, gi) => {
@@ -207,8 +280,7 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
     return sum + indices.reduce((s, oi) => s + (group.options[oi]?.price || 0), 0);
   }, 0), [selections, variantGroups]);
 
-  const canAdd = product?.is_available && variantGroups.every((g, gi) => !g.required || selections[gi] !== undefined);
-
+  const canAdd   = product?.is_available !== false && variantGroups.every((g, gi) => !g.required || selections[gi] !== undefined);
   const hasOffer = product?.is_offer && product?.offer_price;
   const basePrice = hasOffer ? product?.offer_price : product?.price;
   const discount  = hasOffer ? Math.round((1 - product.offer_price / product.price) * 100) : 0;
@@ -220,7 +292,7 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
       const sel = selections[gi];
       if (sel === undefined) return;
       const indices = Array.isArray(sel) ? sel : [sel];
-      const names = indices.map(oi => g.options[oi]?.name).filter(Boolean);
+      const names   = indices.map(oi => g.options[oi]?.name).filter(Boolean);
       variantMap[g.name] = g.multiSelect ? names : (names[0] || "");
     });
     onAdd(product, variantMap, variantTotal, qty);
@@ -230,24 +302,21 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
 
   return (
     <>
-      {/* Backdrop */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50"
         onClick={onClose} />
 
-      {/* Sheet */}
       <motion.div
         initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-        transition={{ type: "spring", stiffness: 380, damping: 38 }}
+        transition={{ type: "spring", stiffness: 400, damping: 40 }}
         className="fixed bottom-0 inset-x-0 z-50 bg-white rounded-t-[32px] overflow-hidden"
-        style={{ maxHeight: "88vh" }}
+        style={{ maxHeight: "90vh" }}
       >
-        {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
 
-        {/* صورة المنتج */}
+        {/* صورة */}
         <div className="relative mx-4 rounded-2xl overflow-hidden" style={{ height: 220 }}>
           <img src={product?.image || DEFAULT_PRODUCT} alt={product?.name}
             className="w-full h-full object-cover" onError={e => { e.target.src = DEFAULT_PRODUCT; }} />
@@ -264,15 +333,14 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
               <Star className="w-3 h-3 fill-white" /> الأكثر طلباً
             </div>
           )}
-
           <button onClick={onClose}
             className="absolute top-3 left-3 w-9 h-9 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
             <X className="w-4 h-4 text-white" />
           </button>
         </div>
 
-        {/* المحتوى */}
-        <div className="px-5 py-4 overflow-y-auto" style={{ maxHeight: "calc(88vh - 280px)" }}>
+        {/* محتوى */}
+        <div className="px-5 py-4 overflow-y-auto" style={{ maxHeight: "calc(90vh - 290px)" }}>
           <h2 className="font-black text-gray-900 text-xl leading-tight mb-1">{product?.name}</h2>
           {product?.description && (
             <p className="text-gray-500 text-sm leading-relaxed mb-3">{product.description}</p>
@@ -280,21 +348,29 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
 
           {/* السعر */}
           <div className="flex items-center gap-3 mb-4">
-            <span className="font-black text-3xl" style={{ color }}>{formatPrice(basePrice + variantTotal)}</span>
-            <span className="text-gray-500 text-sm font-medium">{currency}</span>
+            <motion.span key={basePrice + variantTotal}
+              initial={{ scale: 1.1 }} animate={{ scale: 1 }}
+              className="font-black text-3xl" style={{ color }}>
+              {formatPrice(basePrice + variantTotal)}
+            </motion.span>
+            <span className="text-gray-500 text-sm">{currency}</span>
             {hasOffer && (
-              <span className="text-gray-400 text-base line-through mr-auto">{formatPrice(product?.price)} {currency}</span>
+              <span className="text-gray-400 text-base line-through mr-auto">
+                {formatPrice(product?.price)} {currency}
+              </span>
             )}
           </div>
 
-          {/* خيارات المنتج */}
+          {/* خيارات المتغيرات */}
           {variantGroups.length > 0 && (
             <div className="space-y-4 mb-5">
               {variantGroups.map((group, gi) => (
                 <div key={gi}>
                   <div className="flex items-center gap-2 mb-2.5">
                     <p className="font-bold text-sm text-gray-800">{group.name}</p>
-                    {group.required && <span className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full font-bold">مطلوب</span>}
+                    {group.required && (
+                      <span className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full font-bold">مطلوب</span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {group.options.map((opt, oi) => {
@@ -302,17 +378,18 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
                         ? Array.isArray(selections[gi]) && selections[gi].includes(oi)
                         : selections[gi] === oi;
                       return (
-                        <motion.button key={oi} type="button" whileTap={{ scale: 0.93 }}
+                        <motion.button key={oi} type="button" whileTap={{ scale: 0.91 }}
                           onClick={() => {
                             if (group.multiSelect) {
                               setSelections(prev => {
-                                const cur = Array.isArray(prev[gi]) ? prev[gi] : [];
+                                const cur  = Array.isArray(prev[gi]) ? prev[gi] : [];
                                 const next = isSelected ? cur.filter(i => i !== oi) : [...cur, oi];
                                 return { ...prev, [gi]: next.length ? next : undefined };
                               });
                             } else {
                               setSelections(prev => ({ ...prev, [gi]: oi }));
                             }
+                            haptic([8]);
                           }}
                           className="px-3.5 py-1.5 rounded-xl text-sm font-semibold border-2 transition-all"
                           style={isSelected
@@ -330,46 +407,50 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
             </div>
           )}
 
-          {/* غير متوفر */}
           {!product?.is_available && (
             <div className="bg-red-50 border border-red-100 text-red-600 text-sm font-bold px-4 py-2.5 rounded-xl mb-4 text-center">
               هذا المنتج غير متوفر حالياً
             </div>
           )}
 
-          {/* اختيار الكمية */}
-          {product?.is_available && (
+          {product?.is_available !== false && (
             <div className="flex items-center gap-4">
+              {/* الكمية */}
               <div className="flex items-center gap-4 bg-gray-100 rounded-2xl px-5 py-3">
-                <motion.button whileTap={{ scale: 0.8 }} onClick={() => setQty(q => Math.max(1, q - 1))}
+                <motion.button whileTap={{ scale: 0.78 }} onClick={() => { setQty(q => Math.max(1, q - 1)); haptic([6]); }}
                   className="w-8 h-8 rounded-full bg-white shadow flex items-center justify-center">
                   <Minus className="w-4 h-4 text-gray-700" />
                 </motion.button>
-                <motion.span key={qty} initial={{ scale: 1.4 }} animate={{ scale: 1 }}
+                <motion.span key={qty} initial={{ scale: 1.5 }} animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 500 }}
                   className="font-black text-xl w-7 text-center text-gray-900">{qty}</motion.span>
-                <motion.button whileTap={{ scale: 0.8 }} onClick={() => setQty(q => q + 1)}
+                <motion.button whileTap={{ scale: 0.78 }} onClick={() => { setQty(q => q + 1); haptic([6]); }}
                   className="w-8 h-8 rounded-full flex items-center justify-center shadow"
                   style={{ backgroundColor: color }}>
                   <Plus className="w-4 h-4 text-white" />
                 </motion.button>
               </div>
 
+              {/* زر الإضافة */}
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleAdd}
-                className="flex-1 py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2 transition-colors"
+                className="flex-1 py-4 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2"
                 style={{
                   backgroundColor: added ? "#22c55e" : canAdd ? color : "#9ca3af",
                   boxShadow: `0 4px 20px ${added ? "#22c55e" : canAdd ? color : "#9ca3af"}55`,
+                  transition: "background-color 0.25s",
                 }}>
                 <AnimatePresence mode="wait" initial={false}>
                   {added ? (
-                    <motion.span key="done" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="flex items-center gap-2">
+                    <motion.span key="done" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                      className="flex items-center gap-2">
                       <Check className="w-5 h-5" /> تمت الإضافة ✓
                     </motion.span>
                   ) : (
-                    <motion.span key="add" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="flex items-center gap-2">
+                    <motion.span key="add" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                      className="flex items-center gap-2">
                       <ShoppingCart className="w-5 h-5" />
                       {canAdd || variantGroups.length === 0
-                        ? `أضف للسلة · ${formatPrice((basePrice + variantTotal) * qty)} ${currency}`
+                        ? `أضف · ${formatPrice((basePrice + variantTotal) * qty)} ${currency}`
                         : "اختر الخيارات أولاً"}
                     </motion.span>
                   )}
@@ -378,46 +459,15 @@ function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = 
             </div>
           )}
         </div>
-
-        {/* مسافة أمان */}
-        <div className="h-6" />
+        <div className="h-7" />
       </motion.div>
     </>
   );
 }
 
-// =============================================
-// هيدر القسم في صفحة المنتجات
-// =============================================
-function CategoryHeader({ cat, index, color, onBack }) {
-  const [c1, c2] = CAT_GRADIENTS[index % CAT_GRADIENTS.length];
-  return (
-    <div className="relative h-32 overflow-hidden">
-      {cat.image_url ? (
-        <>
-          <img src={cat.image_url} alt={cat.name} className="absolute inset-0 w-full h-full object-cover scale-110" />
-          <div className="absolute inset-0 backdrop-blur-sm bg-black/40" />
-        </>
-      ) : (
-        <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }} />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-      <div className="relative h-full flex items-end px-4 pb-4">
-        <button onClick={onBack} className="w-9 h-9 bg-white/20 backdrop-blur-md border border-white/25 rounded-xl flex items-center justify-center mr-3 shrink-0">
-          <ChevronRight className="w-5 h-5 text-white" />
-        </button>
-        <div>
-          <p className="text-white font-black text-xl leading-tight drop-shadow">{cat.name}</p>
-          {cat.description && <p className="text-white/70 text-xs mt-0.5">{cat.description}</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================
+// ============================================================
 // Skeleton
-// =============================================
+// ============================================================
 function Skeleton({ index = 0 }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: index * 0.04 }}
@@ -432,9 +482,9 @@ function Skeleton({ index = 0 }) {
   );
 }
 
-// =============================================
+// ============================================================
 // الشاشة الرئيسية
-// =============================================
+// ============================================================
 export default function CustomerMenu() {
   const params      = new URLSearchParams(window.location.search);
   const tableNumber = params.get("table") || params.get("room") || "1";
@@ -466,42 +516,41 @@ export default function CustomerMenu() {
   const tagline   = biz?.menu_tagline || "";
   const hasSocial = biz?.instagram_url || biz?.twitter_url || biz?.snapchat_url || biz?.tiktok_url || biz?.whatsapp;
 
-  // ===== العملة المزدوجة =====
-  const hasDualCurrency  = !!(biz?.currency_dual && biz?.currency_rate && biz?.currency_alt_symbol);
+  // عملة مزدوجة
+  const hasDualCurrency = !!(biz?.currency_dual && biz?.currency_rate && biz?.currency_alt_symbol);
   const [useAltCurrency, setUseAltCurrency] = useState(false);
-
   const mainSymbol = biz?.currency || "ر.س";
   const altSymbol  = biz?.currency_alt_symbol || "";
   const altRate    = biz?.currency_rate || 1;
+  const currency   = useAltCurrency ? altSymbol : mainSymbol;
 
-  const currency = useAltCurrency ? altSymbol : mainSymbol;
-
-  // ساعات العمل
   const isOpen = useMemo(() => {
     if (!biz?.opening_time || !biz?.closing_time) return true;
     const toMins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const openMins = toMins(biz.opening_time);
+    const now       = new Date();
+    const nowMins   = now.getHours() * 60 + now.getMinutes();
+    const openMins  = toMins(biz.opening_time);
     const closeMins = toMins(biz.closing_time);
     if (closeMins < openMins) return nowMins >= openMins || nowMins < closeMins;
     return nowMins >= openMins && nowMins < closeMins;
   }, [biz?.opening_time, biz?.closing_time]);
 
-  // دالة تحويل السعر للعرض
   const fmtPrice = (raw) => {
     if (!raw && raw !== 0) return "0";
     const val = useAltCurrency ? raw / altRate : raw;
-    // تنسيق أرقام العملات العربية
     if (val >= 1000) return val.toLocaleString("ar-SA", { maximumFractionDigits: 0 });
     return val % 1 === 0 ? String(val) : val.toFixed(2);
   };
 
-  const [cart, setCart]             = useState([]);
-  const [cartOpen, setCartOpen]     = useState(false);
-  const [search, setSearch]         = useState("");
+  // حالة التصفح
+  const [view, setView]           = useState("home");   // "home" | "browse"
+  const [browseTab, setBrowseTab] = useState(null);     // catId | "offers" | "featured"
+  const [search, setSearch]       = useState("");
+  const [cart, setCart]           = useState([]);
+  const [cartOpen, setCartOpen]   = useState(false);
+  const [cartPulse, setCartPulse] = useState(false);
+  const [addedToast, setAddedToast] = useState(null);
   const [notifSent, setNotifSent]   = useState(null);
-  const [selectedCat, setSelectedCat] = useState(null);
   const [modalProduct, setModalProduct] = useState(null);
   const menuRef = useRef(null);
 
@@ -509,8 +558,7 @@ export default function CustomerMenu() {
     queryKey: ["categories", bid],
     enabled: !!bid,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("categories").select("*")
+      const { data } = await supabase.from("categories").select("*")
         .eq("business_id", bid).order("sort_order");
       return data || [];
     },
@@ -520,9 +568,7 @@ export default function CustomerMenu() {
     queryKey: ["products", bid],
     enabled: !!bid,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("products").select("*")
-        .eq("business_id", bid);
+      const { data } = await supabase.from("products").select("*").eq("business_id", bid);
       return data || [];
     },
   });
@@ -533,23 +579,50 @@ export default function CustomerMenu() {
     return map;
   }, [categories]);
 
-  const offers   = useMemo(() => products.filter(p => p.is_offer && p.is_available !== false),  [products]);
+  const offers   = useMemo(() => products.filter(p => p.is_offer && p.is_available !== false),   [products]);
   const featured = useMemo(() => products.filter(p => p.is_featured && p.is_available !== false), [products]);
 
+  // tabs للعرض في browse mode
+  const tabs = useMemo(() => [
+    ...(offers.length   > 0 ? [{ id: "offers",   label: "عروض",   emoji: "🔥", count: offers.length   }] : []),
+    ...(featured.length > 0 ? [{ id: "featured", label: "مميز",   emoji: "⭐", count: featured.length }] : []),
+    ...categories.map(c => ({
+      id:    c.id,
+      label: c.name,
+      emoji: c.icon || null,
+      count: products.filter(p => (p.category === c.name || p.category === c.id) && p.is_available !== false).length,
+    })),
+  ], [offers, featured, categories, products]);
+
+  // المنتجات المرئية
   const visibleProducts = useMemo(() => {
-    if (search) return products.filter(p =>
-      p.name?.includes(search) || p.name_en?.toLowerCase().includes(search.toLowerCase())
-    );
-    if (!selectedCat) return [];
-    if (selectedCat.type === "offers")   return offers;
-    if (selectedCat.type === "featured") return featured;
-    if (selectedCat.type === "cat") return products.filter(p =>
-      p.category === selectedCat.cat.name || p.category === selectedCat.cat.id
-    );
-    return [];
-  }, [products, search, selectedCat, offers, featured]);
+    if (search) {
+      return products.filter(p =>
+        p.name?.includes(search) || p.name_en?.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    if (view !== "browse" || !browseTab) return [];
+    if (browseTab === "offers")   return offers;
+    if (browseTab === "featured") return featured;
+    const cat = categories.find(c => c.id === browseTab);
+    if (!cat) return [];
+    return products.filter(p => p.category === cat.name || p.category === cat.id);
+  }, [products, offers, featured, categories, view, browseTab, search]);
+
+  const activeCat    = view === "browse" && browseTab && browseTab !== "offers" && browseTab !== "featured"
+    ? categories.find(c => c.id === browseTab) : null;
+  const activeCatIdx = activeCat ? (catIndex[activeCat.id] ?? 0) : 0;
+
+  const goBrowse = (tab) => { setView("browse"); setBrowseTab(tab); setSearch(""); };
+  const goHome   = () => { setView("home"); setBrowseTab(null); setSearch(""); };
 
   const addToCart = (product, variants = {}, variantPrice = 0, qty = 1) => {
+    snd.add();
+    haptic([15]);
+    setCartPulse(true);
+    setTimeout(() => setCartPulse(false), 600);
+    setAddedToast(product.name);
+    setTimeout(() => setAddedToast(null), 2200);
     const cartKey = `${product.id}__${JSON.stringify(variants)}`;
     setCart(prev => {
       const ex = prev.find(i => i.cartKey === cartKey);
@@ -569,24 +642,25 @@ export default function CustomerMenu() {
       table_number: parseInt(tableNumber), table_name: tableName,
       table_type: tableType, type, status: "pending",
     }),
-    onSuccess: (_, type) => { setNotifSent(type); setTimeout(() => setNotifSent(null), 3500); },
+    onSuccess: (_, type) => {
+      snd.ping();
+      haptic([30, 20, 30]);
+      setNotifSent(type);
+      setTimeout(() => setNotifSent(null), 3500);
+    },
   });
 
-  const showProducts = search || selectedCat;
-  const catTitle = search
+  const showProducts = !!search || view === "browse";
+  const browseSectionTitle = search
     ? `نتائج "${search}"`
-    : selectedCat?.type === "offers"   ? "عروض اليوم 🔥"
-    : selectedCat?.type === "featured" ? "الأكثر طلباً ⭐"
-    : selectedCat?.type === "cat"      ? selectedCat.cat.name
-    : null;
-
-  const selectedCatObj = selectedCat?.type === "cat" ? selectedCat.cat : null;
-  const selectedCatIdx = selectedCatObj ? (catIndex[selectedCatObj.id] ?? 0) : 0;
+    : browseTab === "offers"   ? "عروض اليوم 🔥"
+    : browseTab === "featured" ? "الأكثر طلباً ⭐"
+    : activeCat?.name || "";
 
   return (
     <div className="min-h-screen bg-[#f2f2f7]" dir="rtl">
 
-      {/* ============ HERO ============ */}
+      {/* ======================================= HERO ======================================= */}
       <section className="relative min-h-[100svh] flex flex-col overflow-hidden">
         <div className="absolute inset-0">
           <img src={heroImg} alt="" className="w-full h-full object-cover"
@@ -612,8 +686,7 @@ export default function CustomerMenu() {
             )}
           </motion.div>
 
-          <motion.h1
-            initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          <motion.h1 initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.18, type: "spring", stiffness: 180 }}
             className="text-5xl font-black text-white tracking-tight mb-2 drop-shadow-lg">
             {cafeName}
@@ -661,7 +734,9 @@ export default function CustomerMenu() {
               <SocialBtn url={biz?.twitter_url}   icon={XIcon}    label="X"         cls="bg-black text-white" />
               <SocialBtn url={biz?.snapchat_url}  icon={SnapIcon} label="Snapchat"  cls="bg-yellow-400 text-black" />
               <SocialBtn url={biz?.tiktok_url}    icon={TKIcon}   label="TikTok"    cls="bg-black text-white" />
-              {biz?.whatsapp && <SocialBtn url={`https://wa.me/${biz.whatsapp.replace(/\D/g,"")}`} icon={WAIcon} label="WhatsApp" cls="bg-green-500 text-white" />}
+              {biz?.whatsapp && (
+                <SocialBtn url={`https://wa.me/${biz.whatsapp.replace(/\D/g,"")}`} icon={WAIcon} label="WhatsApp" cls="bg-green-500 text-white" />
+              )}
             </motion.div>
           )}
 
@@ -673,14 +748,16 @@ export default function CustomerMenu() {
                 { type: "call_waiter",  label: "استدعاء موظف", icon: <Bell className="w-4 h-4" /> },
                 { type: "request_bill", label: "طلب الحساب",   icon: <Receipt className="w-4 h-4" /> },
               ].map(({ type, label, icon }) => (
-                <button key={type} onClick={() => sendNotif.mutate(type)}
+                <motion.button key={type} whileTap={{ scale: 0.93 }}
+                  onClick={() => sendNotif.mutate(type)}
                   disabled={sendNotif.isPending || notifSent === type}
-                  className="flex items-center justify-center gap-1.5 py-3.5 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-xl text-white text-[13px] font-semibold active:scale-95 transition-all disabled:opacity-50">
+                  className="flex items-center justify-center gap-1.5 py-3.5 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-xl text-white text-[13px] font-semibold disabled:opacity-50 transition-all">
                   {icon}
                   {notifSent === type ? "✓ تم الإرسال" : label}
-                </button>
+                </motion.button>
               ))}
             </div>
+
             <motion.button whileTap={{ scale: 0.97 }}
               onClick={() => menuRef.current?.scrollIntoView({ behavior: "smooth" })}
               className="w-full py-4 rounded-2xl font-black text-white text-base flex items-center justify-center gap-2.5 shadow-2xl"
@@ -703,7 +780,7 @@ export default function CustomerMenu() {
           </motion.div>
         </motion.div>
 
-        {/* إشعار */}
+        {/* تأكيد الإشعار */}
         <AnimatePresence>
           {notifSent && (
             <motion.div initial={{ opacity: 0, y: -50, scale: 0.85 }} animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -716,7 +793,7 @@ export default function CustomerMenu() {
         </AnimatePresence>
       </section>
 
-      {/* ============ MENU ============ */}
+      {/* ======================================= MENU ======================================= */}
       <section ref={menuRef}>
 
         {/* شريط المغلق */}
@@ -728,73 +805,71 @@ export default function CustomerMenu() {
           </div>
         )}
 
-        {/* شريط ثابت */}
-        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-2xl border-b border-gray-100/80"
+        {/* ========= الهيدر الثابت ========= */}
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-2xl border-b border-gray-100"
           style={{ boxShadow: "0 1px 20px rgba(0,0,0,0.06)" }}>
 
-          {/* هيدر القسم في وضع المنتجات (بدون صورة background) */}
-          <div className="flex items-center gap-3 px-4 py-3">
+          {/* صف البحث */}
+          <div className="flex items-center gap-2 px-4 py-2.5">
             <AnimatePresence>
-              {(selectedCat || search) && (
+              {(view === "browse" || !!search) && (
                 <motion.button
-                  initial={{ opacity: 0, scale: 0.6, width: 0 }}
-                  animate={{ opacity: 1, scale: 1, width: 36 }}
-                  exit={{ opacity: 0, scale: 0.6, width: 0 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                  onClick={() => { setSelectedCat(null); setSearch(""); }}
-                  className="shrink-0 w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden"
-                >
+                  initial={{ opacity: 0, width: 0, marginLeft: 0 }}
+                  animate={{ opacity: 1, width: 36, marginLeft: 0 }}
+                  exit={{ opacity: 0, width: 0 }}
+                  onClick={goHome}
+                  className="shrink-0 w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden">
                   <ChevronRight className="w-5 h-5 text-gray-700" />
                 </motion.button>
               )}
             </AnimatePresence>
 
-            <AnimatePresence mode="wait">
-              {catTitle && !search ? (
-                <motion.p key="title"
-                  initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                  className="font-black text-gray-900 text-base flex-1">
-                  {catTitle}
-                </motion.p>
-              ) : (
-                <motion.div key="search" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 relative">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  <input type="text" value={search}
-                    onChange={e => { setSearch(e.target.value); if (e.target.value) setSelectedCat(null); }}
-                    placeholder="ابحث عن منتج..." dir="rtl"
-                    className="w-full h-10 pr-10 pl-9 text-sm rounded-xl bg-gray-100/80 border-0 outline-none"
-                    style={{ boxShadow: search ? `0 0 0 2px ${primaryHex}40` : undefined }} />
-                  <AnimatePresence>
-                    {search && (
-                      <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                        onClick={() => setSearch("")}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                        <X className="w-4 h-4" />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {catTitle && !search && (
-              <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                onClick={() => setSearch(" ")}
-                className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <Search className="w-4 h-4 text-gray-500" />
-              </motion.button>
-            )}
+            <div className="flex-1 relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                type="text" value={search}
+                onChange={e => {
+                  setSearch(e.target.value);
+                  if (e.target.value) setView("browse");
+                }}
+                placeholder={view === "browse" && !search && browseSectionTitle ? browseSectionTitle : "ابحث في المنيو..."}
+                dir="rtl"
+                className="w-full h-10 pr-10 pl-9 text-sm rounded-xl bg-gray-100/80 border-0 outline-none transition-all"
+                style={{ boxShadow: search ? `0 0 0 2px ${primaryHex}40` : undefined }}
+              />
+              <AnimatePresence>
+                {search && (
+                  <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                    onClick={() => setSearch("")}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <X className="w-4 h-4" />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
+
+          {/* tabs الأقسام */}
+          <AnimatePresence>
+            {view === "browse" && !search && tabs.length > 0 && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+                <CategoryTabs tabs={tabs} activeId={browseTab} onSelect={setBrowseTab} color={primaryHex} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* ===== المحتوى ===== */}
+        {/* ========= المحتوى ========= */}
         <div className="pb-36">
           <AnimatePresence mode="wait">
 
-            {/* شبكة الأقسام */}
+            {/* ---- شبكة الأقسام (Home) ---- */}
             {!showProducts && (
-              <motion.div key="grid"
+              <motion.div key="home"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.98 }}
                 transition={{ duration: 0.18 }}
                 className="px-4 pt-5 space-y-3">
@@ -811,12 +886,12 @@ export default function CustomerMenu() {
                     {offers.length > 0 && (
                       <SpecialCard index={0} emoji="🔥" title="عروض اليوم" subtitle={`${offers.length} عرض متاح`}
                         gradient="linear-gradient(135deg, #ff6b35, #e8020d)"
-                        onClick={() => setSelectedCat({ type: "offers" })} />
+                        onClick={() => { goBrowse("offers"); haptic([10]); }} />
                     )}
                     {featured.length > 0 && (
                       <SpecialCard index={1} emoji="⭐" title="الأكثر طلباً" subtitle={`${featured.length} منتج مميز`}
                         gradient={`linear-gradient(135deg, ${primaryHex}, ${primaryHex}aa)`}
-                        onClick={() => setSelectedCat({ type: "featured" })} />
+                        onClick={() => { goBrowse("featured"); haptic([10]); }} />
                     )}
 
                     {categories.length > 0 && (
@@ -827,8 +902,8 @@ export default function CustomerMenu() {
                           ).length;
                           return (
                             <BigCategoryCard key={cat.id} cat={cat} index={i}
-                              color={primaryHex} productCount={count}
-                              onClick={() => setSelectedCat({ type: "cat", cat })} />
+                              productCount={count}
+                              onClick={() => { goBrowse(cat.id); haptic([10]); }} />
                           );
                         })}
                       </div>
@@ -847,18 +922,35 @@ export default function CustomerMenu() {
               </motion.div>
             )}
 
-            {/* قائمة المنتجات */}
+            {/* ---- قائمة المنتجات (Browse / Search) ---- */}
             {showProducts && (
-              <motion.div key={String(selectedCat?.type) + String(selectedCat?.cat?.id) + search}
-                initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 30 }}
-                transition={{ type: "spring", stiffness: 320, damping: 30 }}>
+              <motion.div key={`browse-${browseTab}-${search}`}
+                initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 24 }}
+                transition={{ type: "spring", stiffness: 340, damping: 30 }}>
 
-                {/* هيدر القسم بالصورة */}
-                {selectedCatObj && (
-                  <CategoryHeader cat={selectedCatObj} index={selectedCatIdx}
-                    color={primaryHex} onBack={() => setSelectedCat(null)} />
-                )}
+                {/* بانر القسم المحدد */}
+                {activeCat && !search && (() => {
+                  const [c1, c2] = CAT_GRADIENTS[activeCatIdx % CAT_GRADIENTS.length];
+                  return (
+                    <div className="relative mx-4 mt-4 mb-2 h-[72px] rounded-2xl overflow-hidden"
+                      style={{ background: activeCat.image_url ? undefined : `linear-gradient(135deg, ${c1}, ${c2})` }}>
+                      {activeCat.image_url && (
+                        <>
+                          <img src={activeCat.image_url} className="absolute inset-0 w-full h-full object-cover" alt="" />
+                          <div className="absolute inset-0 bg-black/40" />
+                        </>
+                      )}
+                      <div className="absolute inset-0 flex items-center px-4 gap-3">
+                        <span className="text-3xl">{activeCat.icon || "🍽️"}</span>
+                        <div>
+                          <p className="text-white font-black text-lg drop-shadow">{activeCat.name}</p>
+                          {activeCat.description && <p className="text-white/70 text-xs">{activeCat.description}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="px-4 pt-4">
                   {isLoading ? (
@@ -875,7 +967,7 @@ export default function CustomerMenu() {
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {visibleProducts.map((p, i) => (
-                        <ProductCard key={p.id} product={p} index={i}
+                        <ProductCard key={`${p.id}-${browseTab}`} product={p} index={i}
                           onTap={setModalProduct}
                           currency={currency} color={primaryHex}
                           formatPrice={fmtPrice} />
@@ -889,7 +981,7 @@ export default function CustomerMenu() {
           </AnimatePresence>
         </div>
 
-        {/* ============ FOOTER ============ */}
+        {/* ======= FOOTER ======= */}
         <footer className="bg-gray-950 text-white overflow-hidden">
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg,transparent,${primaryHex},transparent)` }} />
           <div className="max-w-sm mx-auto px-6 py-10 text-center">
@@ -934,32 +1026,56 @@ export default function CustomerMenu() {
         </footer>
       </section>
 
-      {/* سلة عائمة */}
+      {/* ======= زر السلة العائم ======= */}
       <AnimatePresence>
         {cartCount > 0 && (
-          <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+          <motion.div
+            initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
             className="fixed bottom-6 inset-x-4 z-40">
-            <motion.button whileTap={{ scale: 0.97 }} onClick={() => setCartOpen(true)}
+            <motion.button
+              animate={cartPulse ? { scale: [1, 1.06, 0.97, 1.03, 1] } : { scale: 1 }}
+              transition={{ duration: 0.45, type: "spring" }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setCartOpen(true)}
               className="w-full h-[58px] rounded-[18px] text-white font-bold flex items-center justify-between px-5"
               style={{ backgroundColor: primaryHex, boxShadow: `0 10px 36px ${primaryHex}65` }}>
               <div className="flex items-center gap-2.5">
                 <ShoppingCart className="w-5 h-5" />
-                <span className="font-black text-base">السلة</span>
+                <span className="font-black text-base">عرض السلة</span>
               </div>
               <div className="flex items-center gap-3">
-                <motion.span key={cartCount} initial={{ scale: 1.7 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 400 }}
+                <motion.span key={cartCount} initial={{ scale: 1.8 }} animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 500 }}
                   className="bg-white/25 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center">
                   {cartCount}
                 </motion.span>
-                <span className="font-black">{cartTotal.toFixed(2)} {currency}</span>
+                <span className="font-black">{fmtPrice(cartTotal)} {currency}</span>
               </div>
             </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* مودال المنتج */}
+      {/* ======= تنبيه الإضافة ======= */}
+      <AnimatePresence>
+        {addedToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.88 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.93 }}
+            transition={{ type: "spring", stiffness: 400, damping: 26 }}
+            className="fixed bottom-[84px] inset-x-8 z-40 flex justify-center pointer-events-none">
+            <div className="flex items-center gap-2 px-5 py-3 rounded-2xl text-white text-sm font-bold shadow-2xl max-w-xs text-center"
+              style={{ backgroundColor: primaryHex }}>
+              <Check className="w-4 h-4 shrink-0" />
+              <span className="line-clamp-1">أُضيف: {addedToast}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ======= مودال المنتج ======= */}
       <AnimatePresence>
         {modalProduct && (
           <ProductModal
@@ -973,12 +1089,15 @@ export default function CustomerMenu() {
         )}
       </AnimatePresence>
 
-      <CartSheet open={cartOpen} onOpenChange={setCartOpen}
+      {/* ======= السلة ======= */}
+      <CartSheet
+        open={cartOpen} onOpenChange={setCartOpen}
         cart={cart} setCart={setCart}
         tableNumber={tableNumber} tableType={tableType} tableName={tableName}
-        currency={currency} formatPrice={fmtPrice} />
+        currency={currency} formatPrice={fmtPrice} color={primaryHex}
+      />
 
-      {/* ===== زر تبديل العملة — سوريا فقط ===== */}
+      {/* ======= زر تبديل العملة ======= */}
       <AnimatePresence>
         {hasDualCurrency && (
           <motion.button
@@ -987,7 +1106,7 @@ export default function CustomerMenu() {
             exit={{ opacity: 0, scale: 0.7 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setUseAltCurrency(v => !v)}
-            className="fixed bottom-24 left-4 z-40 flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-xl font-bold text-sm transition-all"
+            className="fixed bottom-24 left-4 z-40 flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-xl font-bold text-sm"
             style={{
               backgroundColor: useAltCurrency ? "#16a34a" : primaryHex,
               color: "white",
@@ -996,11 +1115,8 @@ export default function CustomerMenu() {
           >
             <motion.span
               key={useAltCurrency ? "alt" : "main"}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              className="flex items-center gap-1.5"
-            >
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              className="flex items-center gap-1.5">
               <ArrowLeftRight className="w-3.5 h-3.5" />
               {useAltCurrency ? altSymbol : mainSymbol}
               <span className="opacity-70 text-[11px]">← {useAltCurrency ? mainSymbol : altSymbol}</span>

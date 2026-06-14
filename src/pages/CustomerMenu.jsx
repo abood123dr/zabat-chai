@@ -306,7 +306,9 @@ export default function CustomerMenu() {
     if (!selectedCat) return [];
     if (selectedCat.type === "offers")    return offers;
     if (selectedCat.type === "featured")  return featured;
-    if (selectedCat.type === "cat")       return products.filter(p => p.category === selectedCat.cat.name);
+    if (selectedCat.type === "cat")       return products.filter(p =>
+      p.category === selectedCat.cat.name || p.category === selectedCat.cat.id
+    );
     return [];
   }, [products, search, selectedCat, offers, featured]);
 
@@ -555,20 +557,23 @@ export default function CustomerMenu() {
                     )}
 
                     {/* الأقسام */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {categories.map((cat, i) => {
-                        const count = products.filter(p => p.category === cat.name).length;
-                        if (!count) return null;
-                        return (
-                          <BigCategoryCard
-                            key={cat.id} cat={cat} index={i}
-                            color={primaryHex}
-                            productCount={count}
-                            onClick={() => setSelectedCat({ type: "cat", cat })}
-                          />
-                        );
-                      })}
-                    </div>
+                    {categories.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {categories.map((cat, i) => {
+                          const count = products.filter(p =>
+                            p.category === cat.name || p.category === cat.id
+                          ).length;
+                          return (
+                            <BigCategoryCard
+                              key={cat.id} cat={cat} index={i}
+                              color={primaryHex}
+                              productCount={count}
+                              onClick={() => setSelectedCat({ type: "cat", cat })}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {categories.length === 0 && products.length === 0 && (
                       <div className="text-center py-24">

@@ -152,13 +152,18 @@ export default function BusinessSettings() {
 
   const saveSettings = useMutation({
     mutationFn: async (data) => {
-      const { error } = await supabase.from('businesses').update(data).eq('id', user.business_id);
+      const bid = user.business_id;
+      if (!bid) throw new Error('لا يوجد business_id للمستخدم');
+      const { error } = await supabase.from('businesses').update(data).eq('id', bid);
       if (error) throw error;
     },
     onSuccess: () => {
       refreshBusinessSettings();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    },
+    onError: (err) => {
+      alert('فشل الحفظ: ' + err.message);
     },
   });
 

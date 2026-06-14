@@ -47,8 +47,22 @@ export default function TableManagement() {
   const openEdit = (t) => { setForm({ number: t.number, name: t.name, type: t.type, status: t.status || "available", device_type: t.device_type || "", hourly_rate: t.hourly_rate || 0, capacity: t.capacity || 4 }); setEditingId(t.id); setDialogOpen(true); };
   const closeDialog = () => { setDialogOpen(false); setEditingId(null); };
 
+  const getBaseUrl = () => {
+    // Use configured URL from env (set VITE_APP_URL in Vercel environment variables)
+    if (import.meta.env.VITE_APP_URL) return import.meta.env.VITE_APP_URL;
+    const hostname = window.location.hostname;
+    // Auto-convert Vercel preview URL to production URL
+    // Preview: {project}-git-{branch}-{team}.vercel.app
+    // Production: {project}-{team}.vercel.app
+    if (hostname.includes('-git-') && hostname.endsWith('.vercel.app')) {
+      const production = hostname.replace(/-git-[a-z0-9]+(?=-)/, '');
+      if (production !== hostname) return `https://${production}`;
+    }
+    return window.location.origin;
+  };
+
   const getMenuUrl = (t) => {
-    const base = window.location.origin;
+    const base = getBaseUrl();
     const param = t.type === "room" ? "room" : "table";
     const bid = (t.business_id || user?.business_id) ? `&bid=${t.business_id || user.business_id}` : '';
     return `${base}/menu?${param}=${t.number}&name=${encodeURIComponent(t.name)}${bid}`;

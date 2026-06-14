@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import db, { setCurrentBusinessId, supabase } from "@/api/supabaseClient";
-import { Search, ShoppingCart, Bell, Receipt, ChevronDown, MapPin, Clock, Phone, Plus, X, Check, Star, ChevronRight, Minus } from "lucide-react";
+import { Search, ShoppingCart, Bell, Receipt, ChevronDown, MapPin, Clock, Phone, Plus, X, Check, Star, ChevronRight, Minus, ArrowLeftRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CartSheet from "../components/customer/CartSheet";
 
@@ -117,7 +117,7 @@ function SpecialCard({ emoji, title, subtitle, gradient, onClick, index = 0 }) {
 // =============================================
 // بطاقة منتج - احترافية
 // =============================================
-function ProductCard({ product, onTap, currency, color, index = 0 }) {
+function ProductCard({ product, onTap, currency, color, index = 0, formatPrice = String }) {
   const hasOffer = product.is_offer && product.offer_price;
   const price    = hasOffer ? product.offer_price : product.price;
   const discount = hasOffer ? Math.round((1 - product.offer_price / product.price) * 100) : 0;
@@ -175,11 +175,11 @@ function ProductCard({ product, onTap, currency, color, index = 0 }) {
         )}
         <div className="flex items-end justify-between mt-2">
           <div>
-            <span className="font-black text-base" style={{ color }}>{price}</span>
+            <span className="font-black text-base" style={{ color }}>{formatPrice(price)}</span>
             <span className="text-gray-400 text-[10px] mr-1">{currency}</span>
           </div>
           {hasOffer && (
-            <span className="text-gray-400 text-[11px] line-through">{product.price}</span>
+            <span className="text-gray-400 text-[11px] line-through">{formatPrice(product.price)}</span>
           )}
         </div>
       </div>
@@ -190,7 +190,7 @@ function ProductCard({ product, onTap, currency, color, index = 0 }) {
 // =============================================
 // مودال تفاصيل المنتج - Bottom Sheet
 // =============================================
-function ProductModal({ product, onClose, onAdd, currency, color }) {
+function ProductModal({ product, onClose, onAdd, currency, color, formatPrice = String }) {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const hasOffer = product?.is_offer && product?.offer_price;
@@ -256,10 +256,10 @@ function ProductModal({ product, onClose, onAdd, currency, color }) {
 
           {/* السعر */}
           <div className="flex items-center gap-3 mb-5">
-            <span className="font-black text-3xl" style={{ color }}>{price}</span>
+            <span className="font-black text-3xl" style={{ color }}>{formatPrice(price)}</span>
             <span className="text-gray-500 text-sm font-medium">{currency}</span>
             {hasOffer && (
-              <span className="text-gray-400 text-base line-through mr-auto">{product?.price} {currency}</span>
+              <span className="text-gray-400 text-base line-through mr-auto">{formatPrice(product?.price)} {currency}</span>
             )}
           </div>
 
@@ -298,7 +298,7 @@ function ProductModal({ product, onClose, onAdd, currency, color }) {
                   ) : (
                     <motion.span key="add" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="flex items-center gap-2">
                       <ShoppingCart className="w-5 h-5" />
-                      أضف للسلة · {(price * qty).toFixed(2)} {currency}
+                      أضف للسلة · {formatPrice(price * qty)} {currency}
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -392,8 +392,26 @@ export default function CustomerMenu() {
   const cafeName  = biz?.name         || "المنيو";
   const heroImg   = biz?.hero_image   || DEFAULT_HERO;
   const tagline   = biz?.menu_tagline || "";
-  const currency  = biz?.currency     || "ر.س";
   const hasSocial = biz?.instagram_url || biz?.twitter_url || biz?.snapchat_url || biz?.tiktok_url || biz?.whatsapp;
+
+  // ===== العملة المزدوجة =====
+  const hasDualCurrency  = !!(biz?.currency_dual && biz?.currency_rate && biz?.currency_alt_symbol);
+  const [useAltCurrency, setUseAltCurrency] = useState(false);
+
+  const mainSymbol = biz?.currency || "ر.س";
+  const altSymbol  = biz?.currency_alt_symbol || "";
+  const altRate    = biz?.currency_rate || 1;
+
+  const currency = useAltCurrency ? altSymbol : mainSymbol;
+
+  // دالة تحويل السعر للعرض
+  const fmtPrice = (raw) => {
+    if (!raw && raw !== 0) return "0";
+    const val = useAltCurrency ? raw / altRate : raw;
+    // تنسيق أرقام العملات العربية
+    if (val >= 1000) return val.toLocaleString("ar-SA", { maximumFractionDigits: 0 });
+    return val % 1 === 0 ? String(val) : val.toFixed(2);
+  };
 
   const [cart, setCart]             = useState([]);
   const [cartOpen, setCartOpen]     = useState(false);
@@ -763,7 +781,8 @@ export default function CustomerMenu() {
                       {visibleProducts.map((p, i) => (
                         <ProductCard key={p.id} product={p} index={i}
                           onTap={setModalProduct}
-                          currency={currency} color={primaryHex} />
+                          currency={currency} color={primaryHex}
+                          formatPrice={fmtPrice} />
                       ))}
                     </div>
                   )}
@@ -853,6 +872,7 @@ export default function CustomerMenu() {
             onAdd={addToCart}
             currency={currency}
             color={primaryHex}
+            formatPrice={fmtPrice}
           />
         )}
       </AnimatePresence>
@@ -860,6 +880,37 @@ export default function CustomerMenu() {
       <CartSheet open={cartOpen} onOpenChange={setCartOpen}
         cart={cart} setCart={setCart}
         tableNumber={tableNumber} tableType={tableType} tableName={tableName} />
+
+      {/* ===== زر تبديل العملة — سوريا فقط ===== */}
+      <AnimatePresence>
+        {hasDualCurrency && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.7, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setUseAltCurrency(v => !v)}
+            className="fixed bottom-24 left-4 z-40 flex items-center gap-2 px-4 py-2.5 rounded-2xl shadow-xl font-bold text-sm transition-all"
+            style={{
+              backgroundColor: useAltCurrency ? "#16a34a" : primaryHex,
+              color: "white",
+              boxShadow: `0 4px 20px ${useAltCurrency ? "#16a34a" : primaryHex}55`,
+            }}
+          >
+            <motion.span
+              key={useAltCurrency ? "alt" : "main"}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="flex items-center gap-1.5"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              {useAltCurrency ? altSymbol : mainSymbol}
+              <span className="opacity-70 text-[11px]">← {useAltCurrency ? mainSymbol : altSymbol}</span>
+            </motion.span>
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

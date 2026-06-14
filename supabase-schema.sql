@@ -148,3 +148,11 @@ alter table categories add column if not exists icon text default '☕';
 alter table categories add column if not exists image_url text;
 alter table products   add column if not exists offer_price numeric default 0;
 alter table orders     add column if not exists order_number text;
+
+-- ===== أعمدة العملات =====
+alter table businesses add column if not exists currency_code     text    default 'SAR';
+alter table businesses add column if not exists currency_dual     boolean default false;
+alter table businesses add column if not exists currency_alt_symbol text;
+alter table businesses add column if not exists currency_rate     numeric default 1;
+-- currency_rate = كم وحدة من العملة الرئيسية تساوي 1 من العملة البديلة
+-- مثال سوريا: إذا الأسعار بالليرة القديمة والبديلة جديدة → rate = 15000 (1 جديدة = 15000 قديمة)

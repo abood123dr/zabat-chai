@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette, Share2, Star, Upload, X, Link, ImageIcon } from "lucide-react";
+import { Save, Coffee, Clock, Phone, MapPin, Image, Loader2, CheckCircle, Palette, Share2, Star, Upload, X, Link, ImageIcon, DollarSign, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,6 +97,28 @@ function ImageUpload({ value, onChange, folder = "general", label = "الصور�
   );
 }
 
+// ===== قائمة العملات المدعومة =====
+const CURRENCIES = [
+  {
+    code: "SAR", symbol: "ر.س", name: "ريال سعودي", flag: "🇸🇦",
+    dual: false,
+  },
+  {
+    code: "TRY", symbol: "₺", name: "ليرة تركية", flag: "🇹🇷",
+    dual: false,
+  },
+  {
+    code: "SYP", symbol: "ل.س", name: "ليرة سورية — القديمة", flag: "🇸🇾",
+    dual: true, altSymbol: "ل.ج", altLabel: "الليرة الجديدة",
+    rateHint: "كم ليرة قديمة = 1 ليرة جديدة؟ (مثال: 15000)",
+  },
+  {
+    code: "SYN", symbol: "ل.ج", name: "ليرة سورية — الجديدة", flag: "🇸🇾",
+    dual: true, altSymbol: "ل.س", altLabel: "الليرة القديمة",
+    rateHint: "كم ليرة جديدة = 1 ليرة قديمة؟ (مثال: 0.000067)",
+  },
+];
+
 const THEME_COLORS = [
   { name: "برتقالي", hsl: "32 85% 48%",   hex: "#e8820c" },
   { name: "أزرق",    hsl: "217 91% 60%",  hex: "#3b82f6" },
@@ -112,7 +134,8 @@ export default function BusinessSettings() {
   const { user, businessSettings, refreshBusinessSettings } = useAuth();
   const [form, setForm] = useState({
     name: "", name_en: "", address: "", phone: "",
-    logo_url: "", currency: "ر.س",
+    logo_url: "", currency: "ر.س", currency_code: "SAR",
+    currency_dual: false, currency_alt_symbol: "", currency_rate: 1,
     opening_time: "09:00", closing_time: "24:00",
     primary_color: "32 85% 48%",
     hero_image: "",
@@ -134,7 +157,11 @@ export default function BusinessSettings() {
         address:       businessSettings.address       || "",
         phone:         businessSettings.phone         || "",
         logo_url:      businessSettings.logo_url      || "",
-        currency:      businessSettings.currency      || "ر.س",
+        currency:           businessSettings.currency           || "ر.س",
+        currency_code:      businessSettings.currency_code      || "SAR",
+        currency_dual:      businessSettings.currency_dual      || false,
+        currency_alt_symbol: businessSettings.currency_alt_symbol || "",
+        currency_rate:      businessSettings.currency_rate      || 1,
         opening_time:  businessSettings.opening_time  || "09:00",
         closing_time:  businessSettings.closing_time  || "24:00",
         primary_color:     businessSettings.primary_color     || "32 85% 48%",
@@ -207,20 +234,96 @@ export default function BusinessSettings() {
               label="شعار الكافيه (لوقو)"
               previewHeight="h-24"
             />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />رقم الهاتف</Label>
-                <Input value={form.phone} onChange={set("phone")} placeholder="05xxxxxxxx" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>العملة</Label>
-                <Input value={form.currency} onChange={set("currency")} placeholder="ر.س" />
-              </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />رقم الهاتف</Label>
+              <Input value={form.phone} onChange={set("phone")} placeholder="05xxxxxxxx" />
             </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />العنوان</Label>
               <Input value={form.address} onChange={set("address")} placeholder="المدينة، الحي، الشارع" />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* ===== العملة ===== */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-primary" /> العملة
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* منتقي العملة */}
+            <div className="grid grid-cols-2 gap-2">
+              {CURRENCIES.map(cur => (
+                <button key={cur.code} type="button"
+                  onClick={() => setForm(p => ({
+                    ...p,
+                    currency_code:      cur.code,
+                    currency:           cur.symbol,
+                    currency_dual:      false,
+                    currency_alt_symbol: cur.altSymbol || "",
+                    currency_rate:      1,
+                  }))}
+                  className={`flex items-center gap-3 p-3 rounded-xl border-2 text-right transition-all ${
+                    form.currency_code === cur.code
+                      ? "border-primary bg-primary/8 shadow-sm"
+                      : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <span className="text-2xl">{cur.flag}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm leading-tight">{cur.symbol}</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight">{cur.name}</p>
+                  </div>
+                  {form.currency_code === cur.code && (
+                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <CheckCircle className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* إعدادات العملة المزدوجة — سوريا فقط */}
+            {CURRENCIES.find(c => c.code === form.currency_code)?.dual && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm text-green-800 flex items-center gap-1.5">
+                      <ArrowLeftRight className="w-4 h-4" />
+                      زر تبديل العملة في المنيو
+                    </p>
+                    <p className="text-xs text-green-600 mt-0.5">
+                      يُظهر زراً في المنيو لتبديل العرض بين {form.currency} و {CURRENCIES.find(c=>c.code===form.currency_code)?.altSymbol}
+                    </p>
+                  </div>
+                  <button type="button"
+                    onClick={() => setForm(p => ({ ...p, currency_dual: !p.currency_dual }))}
+                    className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${form.currency_dual ? "bg-green-500" : "bg-gray-300"}`}>
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${form.currency_dual ? "right-1" : "right-7"}`} />
+                  </button>
+                </div>
+
+                {form.currency_dual && (
+                  <div className="space-y-2 pt-1 border-t border-green-200">
+                    <Label className="text-green-800 text-xs">
+                      {CURRENCIES.find(c=>c.code===form.currency_code)?.rateHint}
+                    </Label>
+                    <Input
+                      type="number" min="0" step="any"
+                      value={form.currency_rate}
+                      onChange={e => setForm(p => ({ ...p, currency_rate: parseFloat(e.target.value) || 1 }))}
+                      placeholder="مثال: 15000"
+                      className="bg-white border-green-300"
+                    />
+                    <p className="text-[11px] text-green-600">
+                      مثال: إذا أسعارك بالليرة القديمة وتريد عرض الجديدة ← ضع 15000
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

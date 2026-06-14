@@ -79,7 +79,8 @@ function createEntityAdapter(tableName) {
 
     async create(item) {
       const payload = { ...item, created_date: new Date().toISOString() }
-      if (TENANT_TABLES.has(tableName) && currentBusinessId) {
+      if (TENANT_TABLES.has(tableName)) {
+        if (!currentBusinessId) throw new Error('لا يمكن إنشاء سجل بدون تحديد الكافيه')
         payload.business_id = currentBusinessId
       }
       const { data, error } = await supabase.from(tableName).insert([payload]).select().single()

@@ -1,0 +1,20 @@
+{
+  "name": "المنيو الذكي",
+  "short_name": "المنيو الذكي",
+  "description": "نظام إدارة المقاهي والمطاعم الذكي",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e8820c",
+  "orientation": "portrait-primary",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "https://api.dicebear.com/7.x/initials/svg?seed=م&backgroundColor=e8820c&fontSize=40", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "https://api.dicebear.com/7.x/initials/svg?seed=م&backgroundColor=e8820c&fontSize=40", "sizes": "512x512", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "الكاشير",  "url": "/cashier",  "description": "لوحة الكاشير" },
+    { "name": "المنتجات", "url": "/products", "description": "إدارة المنتجات" }
+  ]
+}

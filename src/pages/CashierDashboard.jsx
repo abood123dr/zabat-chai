@@ -28,33 +28,44 @@ const COLS = [
   { key: "ready",     title: "✅ جاهز للتسليم",  next: "delivered",  nextLabel: "📦 تسليم",        bg: "bg-green-50",  header: "bg-green-600", border: "border-green-200" },
 ];
 
-function OrderCard({ order, onNext, nextLabel, productImages }) {
-  const items = (() => { try { return JSON.parse(order.items); } catch { return []; } })();
-  const hasAction = order.customer_action && order.customer_action !== "none";
-  const actionLabel = order.customer_action === "call_waiter" ? "🔔 يطلب موظف" : "🧾 يطلب الحساب";
-  const mins = Math.floor((Date.now() - new Date(order.created_date)) / 60000);
-  const isLate = order.status === "received" && mins >= 5;
+function LiveTimer({ createdAt, status }) {
+  const [mins, setMins] = useState(Math.floor((Date.now() - new Date(createdAt)) / 60000));
+  useEffect(() => {
+    const t = setInterval(() => setMins(Math.floor((Date.now() - new Date(createdAt)) / 60000)), 10000);
+    return () => clearInterval(t);
+  }, [createdAt]);
+
+  const isLate   = status === "received"  && mins >= 5;
+  const isWarn   = status === "preparing" && mins >= 10;
+  const colorCls = isLate || isWarn ? "text-red-500 font-bold" : mins >= 3 ? "text-amber-500 font-semibold" : "text-gray-400";
 
   return (
-    <div className={`rounded-2xl border-2 bg-white shadow-sm overflow-hidden ${isLate ? "border-red-400" : "border-gray-200"}`}>
+    <p className={`text-xs flex items-center gap-1 mt-0.5 ${colorCls}`}>
+      <Clock className="w-3 h-3" />
+      {mins < 1 ? "الآن" : `${mins} د`}
+      {(isLate || isWarn) && " ⚠ متأخر"}
+    </p>
+  );
+}
+
+function OrderCard({ order, onNext, nextLabel, productImages }) {
+  const items     = (() => { try { return JSON.parse(order.items); } catch { return []; } })();
+  const mins      = Math.floor((Date.now() - new Date(order.created_date)) / 60000);
+  const isLate    = order.status === "received" && mins >= 5;
+  const urgency   = isLate ? "border-red-400 shadow-red-100" : mins >= 3 ? "border-amber-300" : "border-gray-200";
+
+  return (
+    <div className={`rounded-2xl border-2 bg-white shadow-sm overflow-hidden ${urgency}`}>
       <div className={`px-4 py-3 flex items-center justify-between ${isLate ? "bg-red-50" : "bg-gray-50"}`}>
         <div>
           <p className="font-heading font-bold text-base">{order.table_name}</p>
-          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-            <Clock className="w-3 h-3" />{mins} دقيقة مضت
-          </p>
+          <LiveTimer createdAt={order.created_date} status={order.status} />
         </div>
         <div className="text-left">
           <p className="font-bold text-lg text-primary">{order.total} ر.س</p>
-          {isLate && <p className="text-[10px] text-red-500 font-bold">⚠ متأخر</p>}
+          <p className="text-[10px] text-gray-400 text-left">#{order.order_number?.slice(-4)}</p>
         </div>
       </div>
-
-      {hasAction && (
-        <div className="px-4 py-2 bg-red-100 text-red-700 text-sm font-bold text-center">
-          {actionLabel}
-        </div>
-      )}
 
       {items.length > 0 && (
         <div className="px-4 py-3 space-y-2 border-b border-gray-100">
@@ -82,10 +93,8 @@ function OrderCard({ order, onNext, nextLabel, productImages }) {
 
       {nextLabel && (
         <div className="px-4 py-3">
-          <button
-            onClick={onNext}
-            className="w-full py-3 rounded-xl bg-primary text-white font-bold text-base hover:bg-primary/90 active:scale-95 transition-all shadow-sm"
-          >
+          <button onClick={onNext}
+            className="w-full py-3 rounded-xl bg-primary text-white font-bold text-base hover:bg-primary/90 active:scale-95 transition-all shadow-sm">
             {nextLabel}
           </button>
         </div>

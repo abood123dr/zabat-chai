@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import db, { setCurrentBusinessId, getCurrentBusinessId } from "@/api/supabaseClient";
+import db, { setCurrentBusinessId, getCurrentBusinessId, supabase } from "@/api/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
-import { Plus, Pencil, Trash2, Package, Tag, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Tag, ChevronDown, ChevronUp, AlertCircle, Upload, X, Loader2, Link, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,108 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ICONS = ["☕", "🍵", "🧋", "🥤", "🍰", "🥪", "🍕", "🍔", "🍟", "🥗", "🍩", "🎮", "⭐", "🥛", "🧃"];
+const BUCKET = "images";
+
+// ============================================================
+// مكوّن رفع الصور
+// ============================================================
+function ImageUpload({ value, onChange, folder = "general", label = "الصورة" }) {
+  const [uploading, setUploading] = useState(false);
+  const [tab, setTab] = useState(value ? "preview" : "upload");
+  const [urlInput, setUrlInput] = useState("");
+  const inputRef = useRef();
+
+  const upload = async (file) => {
+    if (!file) return;
+    const max = 5 * 1024 * 1024;
+    if (file.size > max) { alert("الصورة أكبر من 5MB"); return; }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop().toLowerCase();
+      const path = `${folder}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      onChange(data.publicUrl);
+      setTab("preview");
+    } catch (e) {
+      alert("فشل الرفع: " + (e.message || "تأكد من إنشاء bucket باسم images في Supabase Storage"));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const applyUrl = () => {
+    if (urlInput.startsWith("http")) { onChange(urlInput); setTab("preview"); }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+
+      {/* معاينة الصورة الحالية */}
+      {value && (
+        <div className="relative rounded-xl overflow-hidden border border-border h-36">
+          <img src={value} alt="صورة" className="w-full h-full object-cover" onError={e => e.target.style.opacity='.3'} />
+          <button type="button" onClick={() => { onChange(""); setTab("upload"); }}
+            className="absolute top-2 left-2 w-7 h-7 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+          <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full">✓ تم التحديد</div>
+        </div>
+      )}
+
+      {/* خيارات الرفع */}
+      {(!value || tab !== "preview") && (
+        <div className="border-2 border-dashed border-border rounded-xl overflow-hidden">
+          {/* تبويبات */}
+          <div className="flex border-b border-border">
+            <button type="button" onClick={() => setTab("upload")}
+              className={`flex-1 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${tab === "upload" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+              <Upload className="w-3.5 h-3.5" /> رفع من الجهاز
+            </button>
+            <button type="button" onClick={() => setTab("url")}
+              className={`flex-1 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${tab === "url" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+              <Link className="w-3.5 h-3.5" /> رابط URL
+            </button>
+          </div>
+
+          {tab === "upload" && (
+            <label className={`flex flex-col items-center justify-center gap-2 py-6 cursor-pointer group transition-colors ${uploading ? "opacity-60 pointer-events-none" : "hover:bg-muted/50"}`}>
+              <input ref={inputRef} type="file" accept="image/*" className="hidden"
+                onChange={e => upload(e.target.files?.[0])} disabled={uploading} />
+              {uploading ? (
+                <>
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  <p className="text-sm font-medium text-primary">جاري الرفع...</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <ImageIcon className="w-6 h-6 text-primary" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">اضغط لاختيار صورة</p>
+                  <p className="text-xs text-muted-foreground">PNG, JPG, WEBP — حتى 5MB</p>
+                </>
+              )}
+            </label>
+          )}
+
+          {tab === "url" && (
+            <div className="p-3 space-y-2">
+              <Input value={urlInput} onChange={e => setUrlInput(e.target.value)}
+                placeholder="https://example.com/image.jpg" dir="ltr"
+                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), applyUrl())} />
+              <Button type="button" onClick={applyUrl} className="w-full h-9 rounded-lg" variant="outline" disabled={!urlInput}>
+                تطبيق الرابط
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ============================================================
 // منتقي الكافيه للسوبر أدمن
@@ -126,26 +228,25 @@ function CategoriesTab({ activeBid }) {
               <Label>اسم القسم *</Label>
               <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: مشروبات ساخنة" required autoFocus />
             </div>
+            <ImageUpload
+              value={form.image_url}
+              onChange={v => setForm(p => ({ ...p, image_url: v }))}
+              folder="categories"
+              label="صورة القسم"
+            />
             <div>
-              <Label className="mb-1 block">صورة القسم (رابط)</Label>
-              <Input value={form.image_url} onChange={e => setForm(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." dir="ltr" />
-              {form.image_url && (
-                <img src={form.image_url} alt="معاينة" className="mt-2 w-full h-24 object-cover rounded-xl border" onError={e => e.target.style.display='none'} />
-              )}
-            </div>
-            <div>
-              <Label className="mb-2 block">الأيقونة (إذا لم تضف صورة)</Label>
-              <div className="flex flex-wrap gap-2">
+              <Label className="mb-2 block text-sm text-muted-foreground">أيقونة احتياطية (تظهر إذا لم تُضف صورة)</Label>
+              <div className="flex flex-wrap gap-1.5">
                 {ICONS.map(ic => (
                   <button key={ic} type="button" onClick={() => setForm(p => ({ ...p, icon: ic }))}
-                    className={`text-2xl w-10 h-10 rounded-xl border-2 transition-all ${form.icon === ic ? "border-primary bg-primary/10 scale-110" : "border-border hover:border-primary/50"}`}>
+                    className={`text-xl w-9 h-9 rounded-xl border-2 transition-all ${form.icon === ic ? "border-primary bg-primary/10 scale-110" : "border-border hover:border-primary/50"}`}>
                     {ic}
                   </button>
                 ))}
               </div>
             </div>
-            <Button type="submit" className="w-full rounded-xl" disabled={save.isPending}>
-              {save.isPending ? "جاري الحفظ..." : editId ? "حفظ" : "إضافة"}
+            <Button type="submit" className="w-full rounded-xl h-11" disabled={save.isPending}>
+              {save.isPending ? <><Loader2 className="w-4 h-4 animate-spin ml-2" />جاري الحفظ...</> : editId ? "حفظ التعديلات" : "إضافة القسم"}
             </Button>
           </form>
         </DialogContent>
@@ -299,11 +400,12 @@ function ProductsTab({ activeBid }) {
 
             {showMore && (
               <div className="space-y-3 border-t border-border pt-3">
-                <div>
-                  <Label>رابط الصورة</Label>
-                  <Input value={form.image} onChange={e => setForm(p => ({ ...p, image: e.target.value }))} placeholder="https://..." />
-                  {form.image && <img src={form.image} alt="" className="w-full h-28 object-cover rounded-lg mt-2" onError={e => e.target.style.display = 'none'} />}
-                </div>
+                <ImageUpload
+                  value={form.image}
+                  onChange={v => setForm(p => ({ ...p, image: v }))}
+                  folder="products"
+                  label="صورة المنتج"
+                />
                 <div>
                   <Label>وصف المنتج</Label>
                   <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="وصف قصير..." />

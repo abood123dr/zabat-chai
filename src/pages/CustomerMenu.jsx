@@ -273,12 +273,27 @@ export default function CustomerMenu() {
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories", bid],
-    queryFn: () => db.entities.Category.filter({ is_active: true }, "sort_order"),
+    enabled: !!bid,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("categories")
+        .select("*")
+        .eq("business_id", bid)
+        .order("sort_order");
+      return data || [];
+    },
   });
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", bid],
-    queryFn: () => db.entities.Product.filter({ is_available: true }),
+    enabled: !!bid,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("*")
+        .eq("business_id", bid);
+      return data || [];
+    },
   });
 
   const offers   = useMemo(() => products.filter(p => p.is_offer),    [products]);

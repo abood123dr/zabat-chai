@@ -46,7 +46,7 @@ function BusinessPicker({ selectedId, onSelect }) {
 // ============================================================
 function CategoriesTab({ activeBid }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", icon: "☕", sort_order: 0 });
+  const [form, setForm] = useState({ name: "", icon: "☕", image_url: "", sort_order: 0 });
   const [editId, setEditId] = useState(null);
   const [error, setError] = useState("");
   const qc = useQueryClient();
@@ -76,8 +76,8 @@ function CategoriesTab({ activeBid }) {
     },
   });
 
-  const openAdd = () => { setForm({ name: "", icon: "☕", sort_order: cats.length }); setEditId(null); setError(""); setOpen(true); };
-  const openEdit = (c) => { setForm({ name: c.name, icon: c.icon || "☕", sort_order: c.sort_order || 0 }); setEditId(c.id); setError(""); setOpen(true); };
+  const openAdd = () => { setForm({ name: "", icon: "☕", image_url: "", sort_order: cats.length }); setEditId(null); setError(""); setOpen(true); };
+  const openEdit = (c) => { setForm({ name: c.name, icon: c.icon || "☕", image_url: c.image_url || "", sort_order: c.sort_order || 0 }); setEditId(c.id); setError(""); setOpen(true); };
 
   if (!activeBid) return (
     <div className="text-center py-20 text-muted-foreground">
@@ -105,7 +105,10 @@ function CategoriesTab({ activeBid }) {
         <div className="space-y-2">
           {cats.map(c => (
             <div key={c.id} className="flex items-center gap-3 bg-card border border-border rounded-xl p-3">
-              <span className="text-2xl">{c.icon || "☕"}</span>
+              {c.image_url
+                ? <img src={c.image_url} alt={c.name} className="w-10 h-10 rounded-lg object-cover" onError={e => e.target.style.display='none'} />
+                : <span className="text-2xl">{c.icon || "☕"}</span>
+              }
               <p className="flex-1 font-medium">{c.name}</p>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(c)}><Pencil className="w-4 h-4" /></Button>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(`حذف "${c.name}"؟`)) del.mutate(c.id); }}><Trash2 className="w-4 h-4" /></Button>
@@ -124,7 +127,14 @@ function CategoriesTab({ activeBid }) {
               <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="مثال: مشروبات ساخنة" required autoFocus />
             </div>
             <div>
-              <Label className="mb-2 block">الأيقونة</Label>
+              <Label className="mb-1 block">صورة القسم (رابط)</Label>
+              <Input value={form.image_url} onChange={e => setForm(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." dir="ltr" />
+              {form.image_url && (
+                <img src={form.image_url} alt="معاينة" className="mt-2 w-full h-24 object-cover rounded-xl border" onError={e => e.target.style.display='none'} />
+              )}
+            </div>
+            <div>
+              <Label className="mb-2 block">الأيقونة (إذا لم تضف صورة)</Label>
               <div className="flex flex-wrap gap-2">
                 {ICONS.map(ic => (
                   <button key={ic} type="button" onClick={() => setForm(p => ({ ...p, icon: ic }))}

@@ -570,58 +570,71 @@ export default function CustomerMenu() {
         <div className="pb-36">
           <AnimatePresence mode="wait">
 
-            {/* الصفحة الرئيسية — قائمة الأقسام */}
+            {/* الصفحة الرئيسية — شبكة الأقسام */}
             {!showProducts && (
               <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="px-4 pt-4 space-y-2">
+                className="px-4 pt-4 space-y-3">
 
                 {isLoading ? (
-                  <div className="space-y-2 pt-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {[...Array(4)].map((_, i) => (
-                      <div key={i} className="h-16 bg-white rounded-2xl animate-pulse" />
+                      <div key={i} className="aspect-[4/3] rounded-2xl bg-white animate-pulse" />
                     ))}
                   </div>
                 ) : (
                   <>
-                    {/* عروض + مميز */}
+                    {/* عروض */}
                     {offers.length > 0 && (
-                      <button onClick={() => { goBrowse("offers"); haptic([10]); }}
-                        className="w-full flex items-center gap-4 px-4 py-4 bg-white rounded-2xl shadow-sm active:scale-[0.98] transition-transform">
-                        <span className="text-2xl">🔥</span>
-                        <div className="flex-1 text-right">
-                          <p className="font-bold text-gray-900">عروض اليوم</p>
-                          <p className="text-xs text-gray-400">{offers.length} عرض متاح</p>
+                      <motion.button whileTap={{ scale: 0.97 }}
+                        onClick={() => { goBrowse("offers"); haptic([10]); }}
+                        className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-white"
+                        style={{ background: "linear-gradient(135deg,#ff6935,#dc2626)", boxShadow: "0 4px 20px #dc262640" }}>
+                        <span className="text-4xl">🔥</span>
+                        <div className="text-right">
+                          <p className="font-black text-base">عروض اليوم</p>
+                          <p className="text-white/70 text-xs mt-0.5">{offers.length} عرض متاح الحين</p>
                         </div>
-                        <ChevronLeft className="w-4 h-4 text-gray-300" />
-                      </button>
-                    )}
-                    {featured.length > 0 && (
-                      <button onClick={() => { goBrowse("featured"); haptic([10]); }}
-                        className="w-full flex items-center gap-4 px-4 py-4 bg-white rounded-2xl shadow-sm active:scale-[0.98] transition-transform">
-                        <span className="text-2xl">⭐</span>
-                        <div className="flex-1 text-right">
-                          <p className="font-bold text-gray-900">الأكثر طلباً</p>
-                          <p className="text-xs text-gray-400">{featured.length} منتج مميز</p>
-                        </div>
-                        <ChevronLeft className="w-4 h-4 text-gray-300" />
-                      </button>
+                      </motion.button>
                     )}
 
-                    {/* الأقسام */}
-                    {categories.map(cat => {
-                      const count = products.filter(p => p.category === cat.name || p.category === cat.id).length;
+                    {/* مميز */}
+                    {featured.length > 0 && (
+                      <motion.button whileTap={{ scale: 0.97 }}
+                        onClick={() => { goBrowse("featured"); haptic([10]); }}
+                        className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-white"
+                        style={{ background: `linear-gradient(135deg,${primaryHex}cc,${primaryHex})`, boxShadow: `0 4px 20px ${primaryHex}50` }}>
+                        <span className="text-4xl">⭐</span>
+                        <div className="text-right">
+                          <p className="font-black text-base">الأكثر طلباً</p>
+                          <p className="text-white/70 text-xs mt-0.5">{featured.length} منتج مميز</p>
+                        </div>
+                      </motion.button>
+                    )}
+
+                    {/* الأقسام — شبكة 2 عمود */}
+                    {categories.length > 0 && (() => {
+                      const BG = ["#fff7ed","#eff6ff","#f0fdf4","#fdf4ff","#fff1f2","#fffbeb","#f0fdfa","#f0f9ff"];
+                      const TX = ["#ea580c","#2563eb","#16a34a","#9333ea","#e11d48","#d97706","#0d9488","#0369a1"];
                       return (
-                        <button key={cat.id} onClick={() => { goBrowse(cat.id); haptic([10]); }}
-                          className="w-full flex items-center gap-4 px-4 py-4 bg-white rounded-2xl shadow-sm active:scale-[0.98] transition-transform">
-                          <span className="text-2xl">{cat.icon || "🍽️"}</span>
-                          <div className="flex-1 text-right">
-                            <p className="font-bold text-gray-900">{cat.name}</p>
-                            <p className="text-xs text-gray-400">{count} منتج</p>
-                          </div>
-                          <ChevronLeft className="w-4 h-4 text-gray-300" />
-                        </button>
+                        <div className="grid grid-cols-2 gap-3">
+                          {categories.map((cat, i) => {
+                            const count = products.filter(p => p.category === cat.name || p.category === cat.id).length;
+                            const bg = BG[i % BG.length];
+                            const tx = TX[i % TX.length];
+                            return (
+                              <motion.button key={cat.id} whileTap={{ scale: 0.94 }}
+                                onClick={() => { goBrowse(cat.id); haptic([10]); }}
+                                className="flex flex-col items-center justify-center gap-2 py-7 px-3 rounded-2xl text-center"
+                                style={{ backgroundColor: bg, boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
+                                <span className="text-4xl leading-none">{cat.icon || "🍽️"}</span>
+                                <p className="font-black text-gray-800 text-sm leading-tight">{cat.name}</p>
+                                <p className="text-[11px] font-semibold" style={{ color: tx }}>{count} منتج</p>
+                              </motion.button>
+                            );
+                          })}
+                        </div>
                       );
-                    })}
+                    })()}
 
                     {!isLoading && categories.length === 0 && products.length === 0 && (
                       <div className="text-center py-24">

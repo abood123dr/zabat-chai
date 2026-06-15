@@ -35,6 +35,15 @@ function playOrder() {
 }
 
 const haptic = (p = [10]) => { try { navigator.vibrate?.(p); } catch {} };
+const speak  = (text) => {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ar-SA"; u.rate = 0.88; u.pitch = 1.05; u.volume = 0.9;
+    window.speechSynthesis.speak(u);
+  } catch {}
+};
 
 export default function CartSheet({
   open, onOpenChange, cart, setCart,
@@ -93,6 +102,7 @@ export default function CartSheet({
     },
     onSuccess: (order) => {
       playOrder();
+      speak("تم إرسال طلبك، تابع حالته");
       haptic([50, 30, 50, 30, 100]);
       setCart([]);
       setNotes("");

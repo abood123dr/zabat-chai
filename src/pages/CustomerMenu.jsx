@@ -44,6 +44,15 @@ const snd = {
   },
 };
 const haptic = (p = [10]) => { try { navigator.vibrate?.(p); } catch {} };
+const speak  = (text, rate = 0.88) => {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ar-SA"; u.rate = rate; u.pitch = 1.08; u.volume = 0.85;
+    window.speechSynthesis.speak(u);
+  } catch {}
+};
 
 // ============================================================
 // Defaults
@@ -618,6 +627,7 @@ export default function CustomerMenu() {
 
   const addToCart = (product, variants = {}, variantPrice = 0, qty = 1) => {
     snd.add();
+    speak("أُضيف", 1.0);
     haptic([15]);
     setCartPulse(true);
     setTimeout(() => setCartPulse(false), 600);

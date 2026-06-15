@@ -624,11 +624,25 @@ export default function CustomerMenu() {
                             return (
                               <motion.button key={cat.id} whileTap={{ scale: 0.94 }}
                                 onClick={() => { goBrowse(cat.id); haptic([10]); }}
-                                className="flex flex-col items-center justify-center gap-2 py-7 px-3 rounded-2xl text-center"
-                                style={{ backgroundColor: bg, boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
-                                <span className="text-4xl leading-none">{cat.icon || "🍽️"}</span>
-                                <p className="font-black text-gray-800 text-sm leading-tight">{cat.name}</p>
-                                <p className="text-[11px] font-semibold" style={{ color: tx }}>{count} منتج</p>
+                                className="relative overflow-hidden rounded-2xl aspect-[4/3] w-full"
+                                style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
+                                {/* الخلفية: صورة أو لون */}
+                                {cat.image_url ? (
+                                  <img src={cat.image_url} alt={cat.name}
+                                    className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                  <div className="absolute inset-0 flex items-center justify-center"
+                                    style={{ backgroundColor: bg }}>
+                                    <span className="text-5xl">{cat.icon || "🍽️"}</span>
+                                  </div>
+                                )}
+                                {/* تدرج أسفل */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+                                {/* النص */}
+                                <div className="absolute bottom-0 inset-x-0 p-3 text-right">
+                                  <p className="font-black text-white text-sm leading-tight drop-shadow">{cat.name}</p>
+                                  <p className="text-white/65 text-[11px] mt-0.5">{count} منتج</p>
+                                </div>
                               </motion.button>
                             );
                           })}

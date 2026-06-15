@@ -21,6 +21,31 @@ function playAlert() {
   } catch {}
 }
 
+function playReady() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [659, 784, 1047, 1319].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = f; o.type = "sine";
+      const t = ctx.currentTime + i * 0.14;
+      g.gain.setValueAtTime(0.35, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+      o.start(t); o.stop(t + 0.13);
+    });
+  } catch {}
+}
+
+function speak(text) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ar-SA"; u.rate = 0.88; u.pitch = 1.05; u.volume = 1;
+    window.speechSynthesis.speak(u);
+  } catch {}
+}
+
 // ========== كارت طلب ==========
 function OrderCard({ order, onNext, nextLabel, color, onDiscount, discountPresets = [], discountEnabled = false }) {
   const items   = useMemo(() => { try { return JSON.parse(order.items); } catch { return []; } }, [order.items]);
@@ -129,7 +154,7 @@ const COLS = [
 
 export default function CashierDashboard() {
   const [soundOn, setSoundOn]   = useState(true);
-  const [newAlert, setNewAlert] = useState(false);
+  const [newAlert, setNewAlert] = useState(null); // null | { table, items }
   const [mainTab, setMainTab]   = useState("orders");
   const [activeCol, setActiveCol] = useState(0);
   const queryClient = useQueryClient();
@@ -188,10 +213,20 @@ export default function CashierDashboard() {
 
   useEffect(() => {
     const unsub = db.entities.Order.subscribe((e) => {
-      if (e.eventType === "INSERT") {
-        if (soundOn) playAlert();
-        setNewAlert(true);
-        setTimeout(() => setNewAlert(false), 5000);
+      if (e.eventType === "INSERT" && soundOn) {
+        playAlert();
+        const table = e.new?.table_name || "طاولة";
+        const items = (() => { try { return JSON.parse(e.new?.items||"[]"); } catch { return []; } })();
+        const itemsText = items.length > 0
+          ? `، ${items.slice(0,2).map(i=>`${i.name} ${i.quantity > 1 ? `×${i.quantity}` : ""}`).join("، ")}${items.length>2?" وغيرها":""}`
+          : "";
+        speak(`طلب جديد لـ ${table}${itemsText}`);
+        setNewAlert({ table, count: items.length });
+        setTimeout(() => setNewAlert(null), 6000);
+      }
+      if (e.eventType === "UPDATE" && e.new?.status === "ready" && soundOn) {
+        playReady();
+        speak(`طلب ${e.new?.table_name || "طاولة"} جاهز للتسليم`);
       }
       queryClient.invalidateQueries({ queryKey: ["orders"] });
     });
@@ -200,7 +235,14 @@ export default function CashierDashboard() {
 
   useEffect(() => {
     const unsub = db.entities.ServiceRequest.subscribe((e) => {
-      if (e.eventType === "INSERT" && soundOn) playAlert();
+      if (e.eventType === "INSERT" && soundOn) {
+        playAlert();
+        const table = e.new?.table_name || "طاولة";
+        const msg = e.new?.type === "call_waiter"
+          ? `طلب استدعاء موظف من ${table}`
+          : `طلب حساب من ${table}`;
+        speak(msg);
+      }
       queryClient.invalidateQueries({ queryKey: ["service_requests"] });
     });
     return unsub;
@@ -225,15 +267,20 @@ export default function CashierDashboard() {
       <AnimatePresence>
         {newAlert && (
           <motion.div
-            initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
+            initial={{ opacity: 0, y: -60, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -60, scale: 0.9 }}
             transition={{ type: "spring", stiffness: 350, damping: 28 }}
-            className="fixed top-4 inset-x-4 z-50 flex items-center gap-3 bg-red-500 text-white px-5 py-4 rounded-2xl shadow-xl font-bold"
+            className="fixed top-4 inset-x-4 z-50 flex items-center gap-3 bg-red-500 text-white px-5 py-4 rounded-2xl shadow-2xl font-bold"
           >
-            <motion.div animate={{ rotate: [0, -15, 15, -15, 0] }} transition={{ duration: 0.5, repeat: 2 }}>
-              <BellRing className="w-6 h-6" />
+            <motion.div animate={{ rotate: [0,-18,18,-18,0] }} transition={{ duration: 0.45, repeat: 3 }}>
+              <BellRing className="w-6 h-6 shrink-0" />
             </motion.div>
-            <span>🔥 طلب جديد!</span>
-            <button onClick={() => setNewAlert(false)} className="mr-auto text-white/70 text-xl">×</button>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-base leading-tight">🔥 طلب جديد!</p>
+              <p className="text-white/80 text-sm font-medium truncate">
+                {newAlert.table}{newAlert.count > 0 ? ` — ${newAlert.count} منتج` : ""}
+              </p>
+            </div>
+            <button onClick={() => setNewAlert(null)} className="text-white/60 hover:text-white text-xl shrink-0">×</button>
           </motion.div>
         )}
       </AnimatePresence>
